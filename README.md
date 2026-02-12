@@ -50,9 +50,9 @@ Interpolates frames from an image batch.
 
 Same as Interpolate but processes a single segment of the input. Chain multiple instances with Save nodes between them to bound peak RAM. The model pass-through output forces sequential execution.
 
-#### BIM-VFI Concat Videos
+### Tween Concat Videos
 
-Concatenates segment video files into a single video using ffmpeg. Connect from the last Segment Interpolate's model output to ensure it runs after all segments are saved.
+Concatenates segment video files into a single video using ffmpeg. Connect from any Segment Interpolate's model output to ensure it runs after all segments are saved. Works with all three models.
 
 ### EMA-VFI
 

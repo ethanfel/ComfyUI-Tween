@@ -342,7 +342,7 @@ class BIMVFISegmentInterpolate(BIMVFIInterpolate):
         return (result, model)
 
 
-class BIMVFIConcatVideos:
+class TweenConcatVideos:
     """Concatenate segment video files into a single video using ffmpeg.
 
     Connect the model output from the last Segment Interpolate node to ensure
@@ -353,8 +353,8 @@ class BIMVFIConcatVideos:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "model": ("BIM_VFI_MODEL", {
-                    "tooltip": "Connect from the last Segment Interpolate's model output. "
+                "model": ("*", {
+                    "tooltip": "Connect from the last Segment Interpolate's model output (any model type). "
                                "This ensures concatenation runs only after all segments are saved.",
                 }),
                 "output_directory": ("STRING", {
@@ -383,7 +383,7 @@ class BIMVFIConcatVideos:
     RETURN_NAMES = ("video_path",)
     OUTPUT_NODE = True
     FUNCTION = "concat"
-    CATEGORY = "video/BIM-VFI"
+    CATEGORY = "video/Tween"
 
     @staticmethod
     def _find_ffmpeg():
