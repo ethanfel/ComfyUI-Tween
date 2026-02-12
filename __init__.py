@@ -30,16 +30,18 @@ def _auto_install_deps():
 
 _auto_install_deps()
 
-from .nodes import LoadBIMVFIModel, BIMVFIInterpolate, BIMVFISegmentInterpolate
+from .nodes import LoadBIMVFIModel, BIMVFIInterpolate, BIMVFISegmentInterpolate, BIMVFIConcatVideos
 
 NODE_CLASS_MAPPINGS = {
     "LoadBIMVFIModel": LoadBIMVFIModel,
     "BIMVFIInterpolate": BIMVFIInterpolate,
     "BIMVFISegmentInterpolate": BIMVFISegmentInterpolate,
+    "BIMVFIConcatVideos": BIMVFIConcatVideos,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadBIMVFIModel": "Load BIM-VFI Model",
     "BIMVFIInterpolate": "BIM-VFI Interpolate",
     "BIMVFISegmentInterpolate": "BIM-VFI Segment Interpolate",
+    "BIMVFIConcatVideos": "BIM-VFI Concat Videos",
 }

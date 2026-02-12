@@ -1,5 +1,9 @@
 import os
+import glob
 import logging
+import shutil
+import subprocess
+import tempfile
 import torch
 import folder_paths
 from comfy.utils import ProgressBar
@@ -125,7 +129,7 @@ class BIMVFIInterpolate:
                 }),
                 "chunk_size": ("INT", {
                     "default": 0, "min": 0, "max": 10000, "step": 1,
-                    "tooltip": "Process input frames in chunks of this size (0=disabled). Each chunk runs all interpolation passes independently then results are stitched seamlessly. Use for very long videos (1000+ frames) to bound memory. Result is identical to processing all at once.",
+                    "tooltip": "Process input frames in chunks of this size (0=disabled). Bounds VRAM usage during processing but the full output is still assembled in RAM. To bound RAM, use the Segment Interpolate node instead. Result is identical to processing all at once.",
                 }),
             }
         }
@@ -276,14 +280,14 @@ class BIMVFISegmentInterpolate(BIMVFIInterpolate):
         base = BIMVFIInterpolate.INPUT_TYPES()
         base["required"]["segment_index"] = ("INT", {
             "default": 0, "min": 0, "max": 10000, "step": 1,
-            "tooltip": "Which segment to process (0-based). "
-                       "Segments overlap by 1 frame for seamless stitching. "
-                       "Connect the model output to the next Segment Interpolate's model input to chain execution.",
+            "tooltip": "Which segment to process (0-based). Bounds RAM by only producing this segment's output frames, "
+                       "unlike chunk_size which bounds VRAM but still assembles the full output in RAM. "
+                       "Chain the model output to the next Segment Interpolate to force sequential execution.",
         })
         base["required"]["segment_size"] = ("INT", {
             "default": 500, "min": 2, "max": 10000, "step": 1,
-            "tooltip": "Number of input frames per segment. Adjacent segments overlap by 1 frame. "
-                       "Output is identical to processing all frames at once with BIM-VFI Interpolate.",
+            "tooltip": "Number of input frames per segment. Adjacent segments overlap by 1 frame for seamless stitching. "
+                       "Smaller = less peak RAM per segment. Save each segment's output to disk before the next runs.",
         })
         return base
 
@@ -318,3 +322,124 @@ class BIMVFISegmentInterpolate(BIMVFIInterpolate):
             result = result[1:]  # skip duplicate boundary frame
 
         return (result, model)
+
+
+class BIMVFIConcatVideos:
+    """Concatenate segment video files into a single video using ffmpeg.
+
+    Connect the model output from the last Segment Interpolate node to ensure
+    this runs only after all segments have been saved to disk.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "model": ("BIM_VFI_MODEL", {
+                    "tooltip": "Connect from the last Segment Interpolate's model output. "
+                               "This ensures concatenation runs only after all segments are saved.",
+                }),
+                "output_directory": ("STRING", {
+                    "default": "",
+                    "tooltip": "Directory containing the segment video files. "
+                               "Leave empty to use ComfyUI's default output directory.",
+                }),
+                "filename_prefix": ("STRING", {
+                    "default": "segment",
+                    "tooltip": "Filename prefix used when saving segments with VHS Video Combine. "
+                               "Matches files like segment_00001.mp4, segment_00002.mp4, etc.",
+                }),
+                "output_filename": ("STRING", {
+                    "default": "final_video.mp4",
+                    "tooltip": "Name of the concatenated output file. Saved in the same directory.",
+                }),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("video_path",)
+    OUTPUT_NODE = True
+    FUNCTION = "concat"
+    CATEGORY = "video/BIM-VFI"
+
+    @staticmethod
+    def _find_ffmpeg():
+        ffmpeg_path = shutil.which("ffmpeg")
+        if ffmpeg_path is None:
+            try:
+                from imageio_ffmpeg import get_ffmpeg_exe
+                ffmpeg_path = get_ffmpeg_exe()
+            except ImportError:
+                pass
+        if ffmpeg_path is None:
+            raise RuntimeError(
+                "ffmpeg not found. Install ffmpeg or pip install imageio-ffmpeg."
+            )
+        return ffmpeg_path
+
+    def concat(self, model, output_directory, filename_prefix, output_filename):
+        # Resolve output directory
+        out_dir = output_directory.strip()
+        if not out_dir:
+            out_dir = folder_paths.get_output_directory()
+
+        if not os.path.isdir(out_dir):
+            raise ValueError(f"Output directory does not exist: {out_dir}")
+
+        # Find segment files matching the prefix
+        safe_prefix = glob.escape(filename_prefix)
+        segments = []
+        for ext in ("mp4", "webm", "mkv"):
+            segments.extend(
+                glob.glob(os.path.join(out_dir, f"{safe_prefix}_*.{ext}"))
+            )
+        segments.sort()
+
+        if not segments:
+            raise FileNotFoundError(
+                f"No segment files found matching '{filename_prefix}_*' "
+                f"in {out_dir}"
+            )
+
+        logger.info(f"Found {len(segments)} segment(s) to concatenate")
+
+        # Write ffmpeg concat list to a temp file
+        fd, concat_list_path = tempfile.mkstemp(suffix=".txt", prefix="bimvfi_concat_")
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write("ffconcat version 1.0\n")
+                for seg in segments:
+                    # ffconcat escaping: \ -> \\, ' -> \'
+                    escaped = os.path.abspath(seg).replace("\\", "\\\\").replace("'", "\\'")
+                    f.write(f"file '{escaped}'\n")
+
+            output_path = os.path.join(out_dir, output_filename)
+            ffmpeg = self._find_ffmpeg()
+
+            cmd = [
+                ffmpeg,
+                "-y",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", concat_list_path,
+                "-c", "copy",
+                output_path,
+            ]
+
+            logger.info(f"Running: {' '.join(cmd)}")
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False
+            )
+
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"ffmpeg concat failed (exit {result.returncode}):\n"
+                    f"{result.stderr}"
+                )
+
+            logger.info(f"Concatenated video saved to {output_path}")
+        finally:
+            if os.path.exists(concat_list_path):
+                os.remove(concat_list_path)
+
+        return (output_path,)
