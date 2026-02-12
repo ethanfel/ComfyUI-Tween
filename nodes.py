@@ -376,6 +376,11 @@ class TweenConcatVideos:
                     "tooltip": "Delete the individual segment files after successful concatenation. "
                                "Useful to avoid leftover files that would pollute the next run.",
                 }),
+                "preview": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "Show the concatenated video as a preview on the node. "
+                               "Disable to skip the preview widget.",
+                }),
             }
         }
 
@@ -400,7 +405,7 @@ class TweenConcatVideos:
             )
         return ffmpeg_path
 
-    def concat(self, model, output_directory, filename_prefix, output_filename, delete_segments):
+    def concat(self, model, output_directory, filename_prefix, output_filename, delete_segments, preview):
         # Resolve output directory
         out_dir = output_directory.strip()
         if not out_dir:
@@ -473,7 +478,29 @@ class TweenConcatVideos:
             if os.path.exists(concat_list_path):
                 os.remove(concat_list_path)
 
-        return (output_path,)
+        result = {"result": (output_path,)}
+
+        if preview:
+            filename = os.path.basename(output_path)
+            # Determine subfolder relative to ComfyUI output dir
+            comfy_output = folder_paths.get_output_directory()
+            if os.path.abspath(out_dir) == os.path.abspath(comfy_output):
+                subfolder = ""
+            else:
+                try:
+                    subfolder = os.path.relpath(out_dir, comfy_output)
+                except ValueError:
+                    subfolder = ""
+            result["ui"] = {
+                "gifs": [{
+                    "filename": filename,
+                    "subfolder": subfolder,
+                    "type": "output",
+                    "format": "video/mp4",
+                }]
+            }
+
+        return result
 
 
 # ---------------------------------------------------------------------------
