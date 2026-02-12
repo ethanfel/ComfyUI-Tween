@@ -1,6 +1,21 @@
-# ComfyUI BIM-VFI + EMA-VFI
+# ComfyUI BIM-VFI + EMA-VFI + SGM-VFI
 
-ComfyUI custom nodes for video frame interpolation using [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VFI) (CVPR 2025) and [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI) (CVPR 2023). Designed for long videos with thousands of frames — processes them without running out of VRAM.
+ComfyUI custom nodes for video frame interpolation using [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VFI) (CVPR 2025), [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI) (CVPR 2023), and [SGM-VFI](https://github.com/MCG-NJU/SGM-VFI) (CVPR 2024). Designed for long videos with thousands of frames — processes them without running out of VRAM.
+
+## Which model should I use?
+
+| | BIM-VFI | EMA-VFI | SGM-VFI |
+|---|---------|---------|---------|
+| **Best for** | General-purpose, non-uniform motion | Fast inference, light VRAM | Large motion, occlusion-heavy scenes |
+| **Quality** | Highest overall | Good | Best on large motion |
+| **Speed** | Moderate | Fastest | Slowest |
+| **VRAM** | ~2 GB/pair | ~1.5 GB/pair | ~3 GB/pair |
+| **Params** | ~17M | ~14–65M | ~15M + GMFlow |
+| **Arbitrary timestep** | Yes | Yes (with `_t` checkpoint) | No (fixed 0.5) |
+| **Paper** | CVPR 2025 | CVPR 2023 | CVPR 2024 |
+| **License** | Research only | Apache 2.0 | Apache 2.0 |
+
+**TL;DR:** Start with **BIM-VFI** for best quality. Use **EMA-VFI** if you need speed or lower VRAM. Use **SGM-VFI** if your video has large camera motion or fast-moving objects that the others struggle with.
 
 ## Nodes
 
@@ -66,7 +81,32 @@ Interpolates frames from an image batch. Same controls as BIM-VFI Interpolate.
 
 Same as EMA-VFI Interpolate but processes a single segment. Same pattern as BIM-VFI Segment Interpolate.
 
-**Output frame count (both models):** 2x = 2N-1, 4x = 4N-3, 8x = 8N-7
+### SGM-VFI
+
+#### Load SGM-VFI Model
+
+Loads an SGM-VFI checkpoint. Auto-downloads from Google Drive on first use to `ComfyUI/models/sgm-vfi/`. Variant (base/small) is auto-detected from the filename (default is small).
+
+| Input | Description |
+|-------|-------------|
+| **model_path** | Checkpoint file from `models/sgm-vfi/` |
+| **tta** | Test-time augmentation: flip input and average with unflipped result (~2x slower, slightly better quality) |
+| **num_key_points** | Sparsity of global matching (0.0 = global everywhere, 0.5 = default balance, higher = faster) |
+
+Available checkpoints:
+| Checkpoint | Variant | Params |
+|-----------|---------|--------|
+| `ours-1-2-points.pth` | Small | ~15M + GMFlow |
+
+#### SGM-VFI Interpolate
+
+Interpolates frames from an image batch. Same controls as BIM-VFI Interpolate.
+
+#### SGM-VFI Segment Interpolate
+
+Same as SGM-VFI Interpolate but processes a single segment. Same pattern as BIM-VFI Segment Interpolate.
+
+**Output frame count (all models):** 2x = 2N-1, 4x = 4N-3, 8x = 8N-7
 
 ## Installation
 
@@ -94,8 +134,8 @@ python install.py
 ### Requirements
 
 - PyTorch with CUDA
-- `cupy` (matching your CUDA version, for BIM-VFI)
-- `timm` (for EMA-VFI)
+- `cupy` (matching your CUDA version, for BIM-VFI and SGM-VFI)
+- `timm` (for EMA-VFI and SGM-VFI)
 - `gdown` (for model auto-download)
 
 ## VRAM Guide
@@ -109,7 +149,7 @@ python install.py
 
 ## Acknowledgments
 
-This project wraps the official [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VFI) implementation by the [KAIST VIC Lab](https://github.com/KAIST-VICLab) and the official [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI) implementation by MCG-NJU. Architecture files in `bim_vfi_arch/` and `ema_vfi_arch/` are vendored from their respective repositories with minimal modifications (relative imports, device-awareness fixes, inference-only paths).
+This project wraps the official [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VFI) implementation by the [KAIST VIC Lab](https://github.com/KAIST-VICLab), the official [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI) implementation by MCG-NJU, and the official [SGM-VFI](https://github.com/MCG-NJU/SGM-VFI) implementation by MCG-NJU. Architecture files in `bim_vfi_arch/`, `ema_vfi_arch/`, and `sgm_vfi_arch/` are vendored from their respective repositories with minimal modifications (relative imports, device-awareness fixes, inference-only paths).
 
 **BiM-VFI:**
 > Wonyong Seo, Jihyong Oh, and Munchurl Kim.
@@ -141,8 +181,25 @@ This project wraps the official [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VF
 }
 ```
 
+**SGM-VFI:**
+> Guozhen Zhang, Yuhan Zhu, Evan Zheran Liu, Haonan Wang, Mingzhen Sun, Gangshan Wu, and Limin Wang.
+> "Sparse Global Matching for Video Frame Interpolation with Large Motion."
+> *IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)*, 2024.
+> [[arXiv]](https://arxiv.org/abs/2404.06913) [[GitHub]](https://github.com/MCG-NJU/SGM-VFI)
+
+```bibtex
+@inproceedings{zhang2024sgmvfi,
+  title={Sparse Global Matching for Video Frame Interpolation with Large Motion},
+  author={Zhang, Guozhen and Zhu, Yuhan and Liu, Evan Zheran and Wang, Haonan and Sun, Mingzhen and Wu, Gangshan and Wang, Limin},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year={2024}
+}
+```
+
 ## License
 
 The BiM-VFI model weights and architecture code are provided by KAIST VIC Lab for **research and education purposes only**. Commercial use requires permission from the principal investigator (Prof. Munchurl Kim, mkimee@kaist.ac.kr). See the [original repository](https://github.com/KAIST-VICLab/BiM-VFI) for details.
 
 The EMA-VFI model weights and architecture code are released under the [Apache 2.0 License](https://github.com/MCG-NJU/EMA-VFI/blob/main/LICENSE). See the [original repository](https://github.com/MCG-NJU/EMA-VFI) for details.
+
+The SGM-VFI model weights and architecture code are released under the [Apache 2.0 License](https://github.com/MCG-NJU/SGM-VFI/blob/main/LICENSE). See the [original repository](https://github.com/MCG-NJU/SGM-VFI) for details.

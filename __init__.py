@@ -40,6 +40,7 @@ _auto_install_deps()
 from .nodes import (
     LoadBIMVFIModel, BIMVFIInterpolate, BIMVFISegmentInterpolate, BIMVFIConcatVideos,
     LoadEMAVFIModel, EMAVFIInterpolate, EMAVFISegmentInterpolate,
+    LoadSGMVFIModel, SGMVFIInterpolate, SGMVFISegmentInterpolate,
 )
 
 NODE_CLASS_MAPPINGS = {
@@ -50,6 +51,9 @@ NODE_CLASS_MAPPINGS = {
     "LoadEMAVFIModel": LoadEMAVFIModel,
     "EMAVFIInterpolate": EMAVFIInterpolate,
     "EMAVFISegmentInterpolate": EMAVFISegmentInterpolate,
+    "LoadSGMVFIModel": LoadSGMVFIModel,
+    "SGMVFIInterpolate": SGMVFIInterpolate,
+    "SGMVFISegmentInterpolate": SGMVFISegmentInterpolate,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -60,4 +64,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadEMAVFIModel": "Load EMA-VFI Model",
     "EMAVFIInterpolate": "EMA-VFI Interpolate",
     "EMAVFISegmentInterpolate": "EMA-VFI Segment Interpolate",
+    "LoadSGMVFIModel": "Load SGM-VFI Model",
+    "SGMVFIInterpolate": "SGM-VFI Interpolate",
+    "SGMVFISegmentInterpolate": "SGM-VFI Segment Interpolate",
 }
