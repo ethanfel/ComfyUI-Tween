@@ -1,0 +1,950 @@
+{
+  "id": "b07c3701-150e-4fd8-8888-f486bdb527fe",
+  "revision": 0,
+  "last_node_id": 35,
+  "last_link_id": 69,
+  "nodes": [
+    {
+      "id": 15,
+      "type": "easy showAnything",
+      "pos": [
+        -7840,
+        576
+      ],
+      "size": [
+        210,
+        88
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 26
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "7c470c67d6df44498e52c902173c1ac77cd5bdfd",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.6.2"
+        }
+      },
+      "widgets_values": [
+        "1"
+      ]
+    },
+    {
+      "id": 20,
+      "type": "JWFloatToInteger",
+      "pos": [
+        -8512,
+        736
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "value",
+          "type": "FLOAT",
+          "widget": {
+            "name": "value"
+          },
+          "link": 29
+        }
+      ],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            33,
+            34
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-various",
+        "ver": "5bd85aaf7616878471469c4ec7e11bbd0cef3bf2",
+        "Node name for S&R": "JWFloatToInteger",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.6.2"
+        }
+      },
+      "widgets_values": [
+        0,
+        "ceiling"
+      ]
+    },
+    {
+      "id": 19,
+      "type": "easy simpleMath",
+      "pos": [
+        -8832,
+        576
+      ],
+      "size": [
+        270,
+        98
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "a",
+          "shape": 7,
+          "type": "*",
+          "link": 45
+        },
+        {
+          "name": "b",
+          "shape": 7,
+          "type": "*",
+          "link": 31
+        },
+        {
+          "name": "c",
+          "shape": 7,
+          "type": "*",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "int",
+          "type": "INT",
+          "links": []
+        },
+        {
+          "name": "float",
+          "type": "FLOAT",
+          "links": [
+            29
+          ]
+        },
+        {
+          "name": "boolean",
+          "type": "BOOLEAN",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "7c470c67d6df44498e52c902173c1ac77cd5bdfd",
+        "Node name for S&R": "easy simpleMath",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.6.2"
+        }
+      },
+      "widgets_values": [
+        "a/b"
+      ]
+    },
+    {
+      "id": 21,
+      "type": "easy showAnything",
+      "pos": [
+        -8480,
+        864
+      ],
+      "size": [
+        210,
+        88
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 34
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "7c470c67d6df44498e52c902173c1ac77cd5bdfd",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.6.2"
+        }
+      },
+      "widgets_values": [
+        "2"
+      ]
+    },
+    {
+      "id": 12,
+      "type": "easy forLoopStart",
+      "pos": [
+        -8160,
+        576
+      ],
+      "size": [
+        270,
+        138
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "initial_value1",
+          "shape": 7,
+          "type": "*",
+          "link": 68
+        },
+        {
+          "name": "total",
+          "type": "INT",
+          "widget": {
+            "name": "total"
+          },
+          "link": 33
+        },
+        {
+          "name": "initial_value2",
+          "type": "*",
+          "link": 44
+        },
+        {
+          "name": "initial_value3",
+          "type": "*",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "flow",
+          "shape": 5,
+          "type": "FLOW_CONTROL",
+          "links": [
+            15
+          ]
+        },
+        {
+          "name": "index",
+          "type": "INT",
+          "links": [
+            25,
+            26
+          ]
+        },
+        {
+          "name": "value1",
+          "type": "*",
+          "links": [
+            18
+          ]
+        },
+        {
+          "name": "value2",
+          "type": "*",
+          "links": [
+            21,
+            64
+          ]
+        },
+        {
+          "name": "value3",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "7c470c67d6df44498e52c902173c1ac77cd5bdfd",
+        "Node name for S&R": "easy forLoopStart",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.6.2"
+        }
+      },
+      "widgets_values": [
+        6
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 13,
+      "type": "easy forLoopEnd",
+      "pos": [
+        -6624,
+        576
+      ],
+      "size": [
+        164.02985382080078,
+        106
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "flow",
+          "shape": 5,
+          "type": "FLOW_CONTROL",
+          "link": 15
+        },
+        {
+          "name": "initial_value1",
+          "shape": 7,
+          "type": "*",
+          "link": 67
+        },
+        {
+          "name": "initial_value2",
+          "type": "*",
+          "link": 64
+        },
+        {
+          "name": "initial_value3",
+          "type": "*",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "value1",
+          "type": "*",
+          "links": [
+            38
+          ]
+        },
+        {
+          "name": "value2",
+          "type": "*",
+          "links": null
+        },
+        {
+          "name": "value3",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "7c470c67d6df44498e52c902173c1ac77cd5bdfd",
+        "Node name for S&R": "easy forLoopEnd",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.6.2"
+        }
+      },
+      "widgets_values": [],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 11,
+      "type": "BIMVFISegmentInterpolate",
+      "pos": [
+        -7584,
+        576
+      ],
+      "size": [
+        321.58209228515625,
+        246
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 21
+        },
+        {
+          "name": "model",
+          "type": "BIM_VFI_MODEL",
+          "link": 18
+        },
+        {
+          "name": "segment_index",
+          "type": "INT",
+          "widget": {
+            "name": "segment_index"
+          },
+          "link": 25
+        },
+        {
+          "name": "segment_size",
+          "type": "INT",
+          "widget": {
+            "name": "segment_size"
+          },
+          "link": 35
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            66
+          ]
+        },
+        {
+          "name": "model",
+          "type": "BIM_VFI_MODEL",
+          "links": [
+            67
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Comfyui-BIM-VFI.git",
+        "ver": "7cf7162143eaa5b0939e0e122f80bc956baf65ea",
+        "Node name for S&R": "BIMVFISegmentInterpolate",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.6.2"
+        }
+      },
+      "widgets_values": [
+        2,
+        40,
+        true,
+        true,
+        1,
+        0,
+        0,
+        500
+      ]
+    },
+    {
+      "id": 3,
+      "type": "LoadBIMVFIModel",
+      "pos": [
+        -8512,
+        576
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "BIM_VFI_MODEL",
+          "links": [
+            68
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Comfyui-BIM-VFI.git",
+        "ver": "471a2990277de3230ac604cbc1b1cabbd1c518ef",
+        "Node name for S&R": "LoadBIMVFIModel",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.6.2"
+        }
+      },
+      "widgets_values": [
+        "bim_vfi.pth",
+        6,
+        6
+      ]
+    },
+    {
+      "id": 35,
+      "type": "Note",
+      "pos": [
+        -6848,
+        416
+      ],
+      "size": [
+        768,
+        88
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.6.2",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "Important output directory must be the same as the path fro video combine both need t share the same filename_prefix"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 24,
+      "type": "TweenConcatVideos",
+      "pos": [
+        -6400,
+        576
+      ],
+      "size": [
+        576,
+        160
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "*",
+          "link": 38
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video_path",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "ComfyUI-Tween.git",
+        "ver": "aa85f523f278f490868626005518c3c05af68933",
+        "Node name for S&R": "TweenConcatVideos",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.6.2"
+        }
+      },
+      "widgets_values": [
+        "video/",
+        "tween_sgm",
+        "tween_video_sgm.mp4",
+        true,
+        true
+      ]
+    },
+    {
+      "id": 26,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        -7200,
+        576
+      ],
+      "size": [
+        544,
+        352
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 66
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": 69
+        },
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "ver": "1.7.9",
+        "Node name for S&R": "VHS_VideoCombine",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.6.2"
+        }
+      },
+      "widgets_values": {
+        "frame_rate": 32,
+        "loop_count": 0,
+        "filename_prefix": "video/tween_sgm",
+        "format": "video/h264-mp4",
+        "pix_fmt": "yuv420p",
+        "crf": 19,
+        "save_metadata": true,
+        "trim_to_audio": false,
+        "pingpong": false,
+        "save_output": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "tween_sgm_00001.mp4",
+            "subfolder": "video",
+            "type": "output",
+            "format": "video/h264-mp4",
+            "frame_rate": 32,
+            "workflow": "tween_sgm_00001.png",
+            "fullpath": "/media/unraid/comfyui/output/video/tween_sgm_00001.mp4"
+          }
+        }
+      }
+    },
+    {
+      "id": 28,
+      "type": "VHS_LoadVideoPath",
+      "pos": [
+        -9152,
+        704
+      ],
+      "size": [
+        288,
+        286
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            44
+          ]
+        },
+        {
+          "name": "frame_count",
+          "type": "INT",
+          "links": [
+            45
+          ]
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": [
+            69
+          ]
+        },
+        {
+          "name": "video_info",
+          "type": "VHS_VIDEOINFO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "ver": "1.7.9",
+        "Node name for S&R": "VHS_LoadVideoPath",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.6.2"
+        }
+      },
+      "widgets_values": {
+        "video": "",
+        "force_rate": 16,
+        "custom_width": 0,
+        "custom_height": 0,
+        "frame_load_cap": 200,
+        "skip_first_frames": 0,
+        "select_every_nth": 1,
+        "format": "AnimateDiff",
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "",
+            "type": "path",
+            "format": "video/",
+            "force_rate": 16,
+            "custom_width": 0,
+            "custom_height": 0,
+            "frame_load_cap": 200,
+            "skip_first_frames": 0,
+            "select_every_nth": 1
+          }
+        }
+      }
+    },
+    {
+      "id": 16,
+      "type": "PrimitiveInt",
+      "pos": [
+        -9152,
+        576
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            31,
+            35
+          ]
+        }
+      ],
+      "title": "Frames number each loops",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.13.0",
+        "Node name for S&R": "PrimitiveInt",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.6.2"
+        }
+      },
+      "widgets_values": [
+        100,
+        "fixed"
+      ]
+    }
+  ],
+  "links": [
+    [
+      15,
+      12,
+      0,
+      13,
+      0,
+      "FLOW_CONTROL"
+    ],
+    [
+      18,
+      12,
+      2,
+      11,
+      1,
+      "BIM_VFI_MODEL"
+    ],
+    [
+      21,
+      12,
+      3,
+      11,
+      0,
+      "IMAGE"
+    ],
+    [
+      25,
+      12,
+      1,
+      11,
+      2,
+      "INT"
+    ],
+    [
+      26,
+      12,
+      1,
+      15,
+      0,
+      "INT"
+    ],
+    [
+      29,
+      19,
+      1,
+      20,
+      0,
+      "FLOAT"
+    ],
+    [
+      31,
+      16,
+      0,
+      19,
+      1,
+      "INT"
+    ],
+    [
+      33,
+      20,
+      0,
+      12,
+      1,
+      "INT"
+    ],
+    [
+      34,
+      20,
+      0,
+      21,
+      0,
+      "INT"
+    ],
+    [
+      35,
+      16,
+      0,
+      11,
+      3,
+      "INT"
+    ],
+    [
+      38,
+      13,
+      0,
+      24,
+      0,
+      "*"
+    ],
+    [
+      44,
+      28,
+      0,
+      12,
+      2,
+      "IMAGE"
+    ],
+    [
+      45,
+      28,
+      1,
+      19,
+      0,
+      "INT"
+    ],
+    [
+      64,
+      12,
+      3,
+      13,
+      2,
+      "*"
+    ],
+    [
+      66,
+      11,
+      0,
+      26,
+      0,
+      "IMAGE"
+    ],
+    [
+      67,
+      11,
+      1,
+      13,
+      1,
+      "BIM_VFI_MODEL"
+    ],
+    [
+      68,
+      3,
+      0,
+      12,
+      0,
+      "BIM_VFI_MODEL"
+    ],
+    [
+      69,
+      28,
+      2,
+      26,
+      1,
+      "AUDIO"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "workflowRendererVersion": "LG",
+    "ue_links": [],
+    "ds": {
+      "scale": 1.0834705943388552,
+      "offset": [
+        10009.878269742538,
+        -100.68482917709798
+      ]
+    },
+    "links_added_by_ue": [],
+    "frontendVersion": "1.38.13",
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
