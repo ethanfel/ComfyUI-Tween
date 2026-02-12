@@ -43,6 +43,8 @@ from .nodes import (
     LoadSGMVFIModel, SGMVFIInterpolate, SGMVFISegmentInterpolate,
 )
 
+WEB_DIRECTORY = "./web"
+
 NODE_CLASS_MAPPINGS = {
     "LoadBIMVFIModel": LoadBIMVFIModel,
     "BIMVFIInterpolate": BIMVFIInterpolate,
