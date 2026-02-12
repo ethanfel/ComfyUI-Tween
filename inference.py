@@ -11,7 +11,7 @@ from .sgm_vfi_arch import feature_extractor as sgm_feature_extractor
 from .sgm_vfi_arch import MultiScaleFlow as SGMMultiScaleFlow
 from .utils.padder import InputPadder
 
-logger = logging.getLogger("BIM-VFI")
+logger = logging.getLogger("Tween")
 
 
 class BiMVFIModel:

@@ -18,7 +18,7 @@ def _ensure_cupy():
             raise RuntimeError(
                 "cupy is required for BIM-VFI. Install it with:\n"
                 "  pip install cupy-cuda12x  (or cupy-cuda11x for CUDA 11)\n"
-                "Or run install.py from the Comfyui-BIM-VFI directory."
+                "Or run install.py from the ComfyUI-Tween directory."
             )
 
 

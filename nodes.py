@@ -13,7 +13,7 @@ from .bim_vfi_arch import clear_backwarp_cache
 from .ema_vfi_arch import clear_warp_cache as clear_ema_warp_cache
 from .sgm_vfi_arch import clear_warp_cache as clear_sgm_warp_cache
 
-logger = logging.getLogger("BIM-VFI")
+logger = logging.getLogger("Tween")
 
 # Google Drive file ID for the pretrained BIM-VFI model
 GDRIVE_FILE_ID = "18Wre7XyRtu_wtFRzcsit6oNfHiFRt9vC"

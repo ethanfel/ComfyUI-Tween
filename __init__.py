@@ -2,7 +2,7 @@ import subprocess
 import sys
 import logging
 
-logger = logging.getLogger("BIM-VFI")
+logger = logging.getLogger("Tween")
 
 
 def _auto_install_deps():
@@ -11,14 +11,14 @@ def _auto_install_deps():
     try:
         import gdown  # noqa: F401
     except ImportError:
-        logger.info("[BIM-VFI] Installing gdown...")
+        logger.info("[Tween] Installing gdown...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
 
     # timm (required for EMA-VFI's MotionFormer backbone)
     try:
         import timm  # noqa: F401
     except ImportError:
-        logger.info("[BIM-VFI] Installing timm...")
+        logger.info("[Tween] Installing timm...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "timm"])
 
     # cupy
@@ -29,10 +29,10 @@ def _auto_install_deps():
             import torch
             major = int(torch.version.cuda.split(".")[0])
             cupy_pkg = f"cupy-cuda{major}x"
-            logger.info(f"[BIM-VFI] Installing {cupy_pkg} (CUDA {torch.version.cuda})...")
+            logger.info(f"[Tween] Installing {cupy_pkg} (CUDA {torch.version.cuda})...")
             subprocess.check_call([sys.executable, "-m", "pip", "install", cupy_pkg])
         except Exception as e:
-            logger.warning(f"[BIM-VFI] Could not auto-install cupy: {e}")
+            logger.warning(f"[Tween] Could not auto-install cupy: {e}")
 
 
 _auto_install_deps()

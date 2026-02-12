@@ -8,18 +8,18 @@ def get_cupy_package():
     try:
         import torch
         if not torch.cuda.is_available():
-            print("[BIM-VFI] WARNING: CUDA not available. cupy requires CUDA.")
+            print("[Tween] WARNING: CUDA not available. cupy requires CUDA.")
             return None
         cuda_version = torch.version.cuda
         if cuda_version is None:
-            print("[BIM-VFI] WARNING: PyTorch has no CUDA version info.")
+            print("[Tween] WARNING: PyTorch has no CUDA version info.")
             return None
         major = int(cuda_version.split(".")[0])
         cupy_pkg = f"cupy-cuda{major}x"
-        print(f"[BIM-VFI] Detected CUDA {cuda_version}, will use {cupy_pkg}")
+        print(f"[Tween] Detected CUDA {cuda_version}, will use {cupy_pkg}")
         return cupy_pkg
     except Exception as e:
-        print(f"[BIM-VFI] WARNING: Could not detect CUDA version: {e}")
+        print(f"[Tween] WARNING: Could not detect CUDA version: {e}")
         return None
 
 

@@ -114,7 +114,7 @@ Clone into your ComfyUI `custom_nodes/` directory:
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/your-user/Comfyui-BIM-VFI.git
+git clone https://github.com/your-user/ComfyUI-Tween.git
 ```
 
 Dependencies (`gdown`, `cupy`, `timm`) are auto-installed on first load. The correct `cupy` variant is detected from your PyTorch CUDA version.
@@ -127,7 +127,7 @@ Dependencies (`gdown`, `cupy`, `timm`) are auto-installed on first load. The cor
 To install manually:
 
 ```bash
-cd Comfyui-BIM-VFI
+cd ComfyUI-Tween
 python install.py
 ```
 
