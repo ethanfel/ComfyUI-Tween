@@ -4,17 +4,22 @@ import torch.nn.functional as F
 class InputPadder:
     """ Pads images such that dimensions are divisible by divisor """
 
-    def __init__(self, dims, divisor=16):
+    def __init__(self, dims, divisor=16, mode='constant', center=False):
         self.ht, self.wd = dims[-2:]
+        self.mode = mode
         pad_ht = (((self.ht // divisor) + 1) * divisor - self.ht) % divisor
         pad_wd = (((self.wd // divisor) + 1) * divisor - self.wd) % divisor
-        self._pad = [0, pad_wd, 0, pad_ht]
+        if center:
+            self._pad = [pad_wd // 2, pad_wd - pad_wd // 2,
+                         pad_ht // 2, pad_ht - pad_ht // 2]
+        else:
+            self._pad = [0, pad_wd, 0, pad_ht]
 
     def pad(self, *inputs):
         if len(inputs) == 1:
-            return F.pad(inputs[0], self._pad, mode='constant')
+            return F.pad(inputs[0], self._pad, mode=self.mode)
         else:
-            return [F.pad(x, self._pad, mode='constant') for x in inputs]
+            return [F.pad(x, self._pad, mode=self.mode) for x in inputs]
 
     def unpad(self, *inputs):
         if len(inputs) == 1:

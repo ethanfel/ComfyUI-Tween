@@ -14,6 +14,13 @@ def _auto_install_deps():
         logger.info("[BIM-VFI] Installing gdown...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
 
+    # timm (required for EMA-VFI's MotionFormer backbone)
+    try:
+        import timm  # noqa: F401
+    except ImportError:
+        logger.info("[BIM-VFI] Installing timm...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "timm"])
+
     # cupy
     try:
         import cupy  # noqa: F401
@@ -30,13 +37,19 @@ def _auto_install_deps():
 
 _auto_install_deps()
 
-from .nodes import LoadBIMVFIModel, BIMVFIInterpolate, BIMVFISegmentInterpolate, BIMVFIConcatVideos
+from .nodes import (
+    LoadBIMVFIModel, BIMVFIInterpolate, BIMVFISegmentInterpolate, BIMVFIConcatVideos,
+    LoadEMAVFIModel, EMAVFIInterpolate, EMAVFISegmentInterpolate,
+)
 
 NODE_CLASS_MAPPINGS = {
     "LoadBIMVFIModel": LoadBIMVFIModel,
     "BIMVFIInterpolate": BIMVFIInterpolate,
     "BIMVFISegmentInterpolate": BIMVFISegmentInterpolate,
     "BIMVFIConcatVideos": BIMVFIConcatVideos,
+    "LoadEMAVFIModel": LoadEMAVFIModel,
+    "EMAVFIInterpolate": EMAVFIInterpolate,
+    "EMAVFISegmentInterpolate": EMAVFISegmentInterpolate,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -44,4 +57,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "BIMVFIInterpolate": "BIM-VFI Interpolate",
     "BIMVFISegmentInterpolate": "BIM-VFI Segment Interpolate",
     "BIMVFIConcatVideos": "BIM-VFI Concat Videos",
+    "LoadEMAVFIModel": "Load EMA-VFI Model",
+    "EMAVFIInterpolate": "EMA-VFI Interpolate",
+    "EMAVFISegmentInterpolate": "EMA-VFI Segment Interpolate",
 }
