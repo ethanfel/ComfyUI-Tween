@@ -353,6 +353,11 @@ class BIMVFIConcatVideos:
                     "default": "final_video.mp4",
                     "tooltip": "Name of the concatenated output file. Saved in the same directory.",
                 }),
+                "delete_segments": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Delete the individual segment files after successful concatenation. "
+                               "Useful to avoid leftover files that would pollute the next run.",
+                }),
             }
         }
 
@@ -377,7 +382,7 @@ class BIMVFIConcatVideos:
             )
         return ffmpeg_path
 
-    def concat(self, model, output_directory, filename_prefix, output_filename):
+    def concat(self, model, output_directory, filename_prefix, output_filename, delete_segments):
         # Resolve output directory
         out_dir = output_directory.strip()
         if not out_dir:
@@ -438,6 +443,14 @@ class BIMVFIConcatVideos:
                 )
 
             logger.info(f"Concatenated video saved to {output_path}")
+
+            if delete_segments:
+                for seg in segments:
+                    try:
+                        os.remove(seg)
+                    except OSError as e:
+                        logger.warning(f"Failed to delete segment {seg}: {e}")
+                logger.info(f"Deleted {len(segments)} segment file(s)")
         finally:
             if os.path.exists(concat_list_path):
                 os.remove(concat_list_path)
