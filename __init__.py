@@ -52,8 +52,6 @@ from .nodes import (
     LoadGIMMVFIModel, GIMMVFIInterpolate, GIMMVFISegmentInterpolate,
 )
 
-WEB_DIRECTORY = "./web"
-
 NODE_CLASS_MAPPINGS = {
     "LoadBIMVFIModel": LoadBIMVFIModel,
     "BIMVFIInterpolate": BIMVFIInterpolate,
