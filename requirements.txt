@@ -1,1 +1,6 @@
 gdown
+omegaconf
+yacs
+easydict
+einops
+huggingface_hub

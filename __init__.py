@@ -34,6 +34,14 @@ def _auto_install_deps():
         except Exception as e:
             logger.warning(f"[Tween] Could not auto-install cupy: {e}")
 
+    # GIMM-VFI dependencies
+    for pkg in ("omegaconf", "yacs", "easydict", "einops", "huggingface_hub"):
+        try:
+            __import__(pkg)
+        except ImportError:
+            logger.info(f"[Tween] Installing {pkg}...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+
 
 _auto_install_deps()
 
@@ -41,6 +49,7 @@ from .nodes import (
     LoadBIMVFIModel, BIMVFIInterpolate, BIMVFISegmentInterpolate, TweenConcatVideos,
     LoadEMAVFIModel, EMAVFIInterpolate, EMAVFISegmentInterpolate,
     LoadSGMVFIModel, SGMVFIInterpolate, SGMVFISegmentInterpolate,
+    LoadGIMMVFIModel, GIMMVFIInterpolate, GIMMVFISegmentInterpolate,
 )
 
 WEB_DIRECTORY = "./web"
@@ -56,6 +65,9 @@ NODE_CLASS_MAPPINGS = {
     "LoadSGMVFIModel": LoadSGMVFIModel,
     "SGMVFIInterpolate": SGMVFIInterpolate,
     "SGMVFISegmentInterpolate": SGMVFISegmentInterpolate,
+    "LoadGIMMVFIModel": LoadGIMMVFIModel,
+    "GIMMVFIInterpolate": GIMMVFIInterpolate,
+    "GIMMVFISegmentInterpolate": GIMMVFISegmentInterpolate,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -69,4 +81,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadSGMVFIModel": "Load SGM-VFI Model",
     "SGMVFIInterpolate": "SGM-VFI Interpolate",
     "SGMVFISegmentInterpolate": "SGM-VFI Segment Interpolate",
+    "LoadGIMMVFIModel": "Load GIMM-VFI Model",
+    "GIMMVFIInterpolate": "GIMM-VFI Interpolate",
+    "GIMMVFISegmentInterpolate": "GIMM-VFI Segment Interpolate",
 }
