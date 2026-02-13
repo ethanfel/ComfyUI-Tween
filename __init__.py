@@ -34,8 +34,8 @@ def _auto_install_deps():
         except Exception as e:
             logger.warning(f"[Tween] Could not auto-install cupy: {e}")
 
-    # GIMM-VFI dependencies
-    for pkg in ("omegaconf", "yacs", "easydict", "einops", "huggingface_hub"):
+    # GIMM-VFI + FlashVSR dependencies
+    for pkg in ("omegaconf", "yacs", "easydict", "einops", "huggingface_hub", "safetensors"):
         try:
             __import__(pkg)
         except ImportError:
@@ -50,6 +50,7 @@ from .nodes import (
     LoadEMAVFIModel, EMAVFIInterpolate, EMAVFISegmentInterpolate,
     LoadSGMVFIModel, SGMVFIInterpolate, SGMVFISegmentInterpolate,
     LoadGIMMVFIModel, GIMMVFIInterpolate, GIMMVFISegmentInterpolate,
+    LoadFlashVSRModel, FlashVSRUpscale, FlashVSRSegmentUpscale,
 )
 
 WEB_DIRECTORY = "./web"
@@ -68,6 +69,9 @@ NODE_CLASS_MAPPINGS = {
     "LoadGIMMVFIModel": LoadGIMMVFIModel,
     "GIMMVFIInterpolate": GIMMVFIInterpolate,
     "GIMMVFISegmentInterpolate": GIMMVFISegmentInterpolate,
+    "LoadFlashVSRModel": LoadFlashVSRModel,
+    "FlashVSRUpscale": FlashVSRUpscale,
+    "FlashVSRSegmentUpscale": FlashVSRSegmentUpscale,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -84,4 +88,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadGIMMVFIModel": "Load GIMM-VFI Model",
     "GIMMVFIInterpolate": "GIMM-VFI Interpolate",
     "GIMMVFISegmentInterpolate": "GIMM-VFI Segment Interpolate",
+    "LoadFlashVSRModel": "Load FlashVSR Model",
+    "FlashVSRUpscale": "FlashVSR Upscale",
+    "FlashVSRSegmentUpscale": "FlashVSR Segment Upscale",
 }

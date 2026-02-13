@@ -1,6 +1,6 @@
-# ComfyUI BIM-VFI + EMA-VFI + SGM-VFI + GIMM-VFI
+# ComfyUI BIM-VFI + EMA-VFI + SGM-VFI + GIMM-VFI + FlashVSR
 
-ComfyUI custom nodes for video frame interpolation using [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VFI) (CVPR 2025), [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI) (CVPR 2023), [SGM-VFI](https://github.com/MCG-NJU/SGM-VFI) (CVPR 2024), and [GIMM-VFI](https://github.com/GSeanCDAT/GIMM-VFI) (NeurIPS 2024). Designed for long videos with thousands of frames — processes them without running out of VRAM.
+ComfyUI custom nodes for video frame interpolation using [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VFI) (CVPR 2025), [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI) (CVPR 2023), [SGM-VFI](https://github.com/MCG-NJU/SGM-VFI) (CVPR 2024), and [GIMM-VFI](https://github.com/GSeanCDAT/GIMM-VFI) (NeurIPS 2024), plus video super-resolution using [FlashVSR](https://github.com/OpenImagingLab/FlashVSR) (arXiv 2025). Designed for long videos with thousands of frames — processes them without running out of VRAM.
 
 ## Which model should I use?
 
@@ -17,6 +17,21 @@ ComfyUI custom nodes for video frame interpolation using [BiM-VFI](https://githu
 | **License** | Research only | Apache 2.0 | Apache 2.0 | Apache 2.0 |
 
 **TL;DR:** Start with **BIM-VFI** for best quality. Use **EMA-VFI** if you need speed or lower VRAM. Use **SGM-VFI** if your video has large camera motion or fast-moving objects that the others struggle with. Use **GIMM-VFI** when you want 4x or 8x interpolation without recursive passes — it generates all intermediate frames in a single forward pass per pair.
+
+### Video Super-Resolution
+
+FlashVSR is a different category — **spatial upscaling** rather than temporal interpolation. It can be combined with any of the VFI models above.
+
+| | FlashVSR |
+|---|----------|
+| **Task** | 4x video super-resolution |
+| **Architecture** | Wan 2.1-1.3B DiT + VAE (diffusion-based) |
+| **Modes** | Full (best quality), Tiny (fast), Tiny-Long (streaming, lowest VRAM) |
+| **VRAM** | ~8–12 GB (tiled, tiny mode) / ~16–24 GB (full mode) |
+| **Params** | ~1.3B (DiT) + ~200M (VAE) |
+| **Min input** | 21 frames |
+| **Paper** | arXiv 2510.12747 |
+| **License** | Apache 2.0 |
 
 ## Nodes
 
@@ -136,7 +151,61 @@ Interpolates frames from an image batch. Same controls as BIM-VFI Interpolate, p
 
 Same as GIMM-VFI Interpolate but processes a single segment. Same pattern as BIM-VFI Segment Interpolate.
 
-**Output frame count (all models):** 2x = 2N-1, 4x = 4N-3, 8x = 8N-7
+**Output frame count (VFI models):** 2x = 2N-1, 4x = 4N-3, 8x = 8N-7
+
+### FlashVSR
+
+FlashVSR does **4x video super-resolution** (spatial upscaling), not frame interpolation. It uses a diffusion-based approach built on Wan 2.1-1.3B for temporally coherent upscaling.
+
+#### Load FlashVSR Model
+
+Downloads checkpoints from HuggingFace (~7.5 GB) on first use to `ComfyUI/models/flashvsr/`.
+
+| Input | Description |
+|-------|-------------|
+| **mode** | Pipeline mode: `tiny` (fast TCDecoder decode), `tiny-long` (streaming TCDecoder, lowest VRAM for long videos), `full` (standard VAE decode, best quality) |
+| **precision** | `bf16` (faster on modern GPUs) or `fp16` (for older GPUs) |
+
+Checkpoints (auto-downloaded from [1038lab/FlashVSR](https://huggingface.co/1038lab/FlashVSR)):
+| Checkpoint | Size | Description |
+|-----------|------|-------------|
+| `FlashVSR1_1.safetensors` | ~5 GB | Main DiT model (v1.1) |
+| `Wan2.1_VAE.safetensors` | ~2 GB | Video VAE |
+| `LQ_proj_in.safetensors` | ~50 MB | Low-quality frame projection |
+| `TCDecoder.safetensors` | ~200 MB | Tiny conditional decoder (for tiny/tiny-long modes) |
+| `Prompt.safetensors` | ~1 MB | Precomputed text embeddings |
+
+#### FlashVSR Upscale
+
+Upscales an image batch with 4x spatial super-resolution.
+
+| Input | Description |
+|-------|-------------|
+| **images** | Input video frames (minimum 21 frames) |
+| **model** | Model from the loader node |
+| **scale** | Upscaling factor: 2x or 4x (4x is native resolution) |
+| **frame_chunk_size** | Process in chunks of N frames to bound VRAM (0 = all at once). Recommended: 33 or 65. Each chunk must be >= 21 frames |
+| **tiled** | Enable tiled VAE decode (reduces VRAM significantly) |
+| **tile_size_h / tile_size_w** | VAE tile dimensions in latent space (default 60/104) |
+| **topk_ratio** | Sparse attention ratio. Higher = faster, may lose fine detail (default 2.0) |
+| **kv_ratio** | KV cache ratio. Higher = better quality, more VRAM (default 2.0) |
+| **local_range** | Local attention window: 9 = sharper details, 11 = more temporal stability |
+| **color_fix** | Apply wavelet color correction to prevent color shifts |
+| **unload_dit** | Offload DiT to CPU before VAE decode (saves VRAM, slower) |
+| **seed** | Random seed for the diffusion process |
+
+#### FlashVSR Segment Upscale
+
+Same as FlashVSR Upscale but processes a single segment of the input. Chain multiple instances with Save nodes between them to bound peak RAM. The model pass-through output forces sequential execution.
+
+| Input | Description |
+|-------|-------------|
+| **segment_index** | Which segment to process (0-based) |
+| **segment_size** | Number of input frames per segment (minimum 21) |
+| **overlap_frames** | Overlapping frames between adjacent segments for temporal context and crossfade blending |
+| **blend_frames** | Number of frames within the overlap to crossfade (must be <= overlap_frames) |
+
+Plus all the same upscale parameters as FlashVSR Upscale.
 
 ## Installation
 
@@ -147,7 +216,7 @@ cd ComfyUI/custom_nodes
 git clone https://github.com/your-user/ComfyUI-Tween.git
 ```
 
-Dependencies (`gdown`, `cupy`, `timm`, `omegaconf`, `easydict`, `yacs`, `einops`, `huggingface_hub`) are auto-installed on first load. The correct `cupy` variant is detected from your PyTorch CUDA version.
+Dependencies (`gdown`, `cupy`, `timm`, `omegaconf`, `easydict`, `yacs`, `einops`, `huggingface_hub`, `safetensors`) are auto-installed on first load. The correct `cupy` variant is detected from your PyTorch CUDA version.
 
 > **Warning:** `cupy` is a large package (~800MB) and compilation/installation can take several minutes. The first ComfyUI startup after installing this node may appear to hang while `cupy` installs in the background. Check the console log for progress. If auto-install fails (e.g. missing build tools in Docker), install manually with:
 > ```bash
@@ -168,7 +237,8 @@ python install.py
 - `timm` (for EMA-VFI and SGM-VFI)
 - `gdown` (for BIM-VFI/EMA-VFI/SGM-VFI model auto-download)
 - `omegaconf`, `easydict`, `yacs`, `einops` (for GIMM-VFI)
-- `huggingface_hub` (for GIMM-VFI model auto-download)
+- `huggingface_hub` (for GIMM-VFI and FlashVSR model auto-download)
+- `safetensors` (for FlashVSR checkpoint loading)
 
 ## VRAM Guide
 
@@ -181,7 +251,7 @@ python install.py
 
 ## Acknowledgments
 
-This project wraps the official [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VFI) implementation by the [KAIST VIC Lab](https://github.com/KAIST-VICLab), the official [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI) implementation by MCG-NJU, the official [SGM-VFI](https://github.com/MCG-NJU/SGM-VFI) implementation by MCG-NJU, and the [GIMM-VFI](https://github.com/GSeanCDAT/GIMM-VFI) implementation by S-Lab (NTU). GIMM-VFI architecture files in `gimm_vfi_arch/` are adapted from [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/ComfyUI-GIMM-VFI) with safetensors checkpoints from [Kijai/GIMM-VFI_safetensors](https://huggingface.co/Kijai/GIMM-VFI_safetensors). Architecture files in `bim_vfi_arch/`, `ema_vfi_arch/`, `sgm_vfi_arch/`, and `gimm_vfi_arch/` are vendored from their respective repositories with minimal modifications (relative imports, device-awareness fixes, inference-only paths).
+This project wraps the official [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VFI) implementation by the [KAIST VIC Lab](https://github.com/KAIST-VICLab), the official [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI) implementation by MCG-NJU, the official [SGM-VFI](https://github.com/MCG-NJU/SGM-VFI) implementation by MCG-NJU, the [GIMM-VFI](https://github.com/GSeanCDAT/GIMM-VFI) implementation by S-Lab (NTU), and [FlashVSR](https://github.com/OpenImagingLab/FlashVSR) by OpenImagingLab. GIMM-VFI architecture files in `gimm_vfi_arch/` are adapted from [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/ComfyUI-GIMM-VFI) with safetensors checkpoints from [Kijai/GIMM-VFI_safetensors](https://huggingface.co/Kijai/GIMM-VFI_safetensors). FlashVSR architecture files in `flashvsr_arch/` are adapted from [1038lab/ComfyUI-FlashVSR](https://github.com/1038lab/ComfyUI-FlashVSR) (a diffsynth subset) with safetensors checkpoints from [1038lab/FlashVSR](https://huggingface.co/1038lab/FlashVSR). Architecture files in `bim_vfi_arch/`, `ema_vfi_arch/`, `sgm_vfi_arch/`, `gimm_vfi_arch/`, and `flashvsr_arch/` are vendored from their respective repositories with minimal modifications (relative imports, device-awareness fixes, dtype safety patches, inference-only paths).
 
 **BiM-VFI:**
 > Wonyong Seo, Jihyong Oh, and Munchurl Kim.
@@ -243,6 +313,21 @@ This project wraps the official [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VF
 }
 ```
 
+**FlashVSR:**
+> Junhao Zhuang, Ting-Che Lin, Xin Zhong, Zhihong Pan, Chun Yuan, and Ailing Zeng.
+> "FlashVSR: Efficient Real-World Video Super-Resolution via Distilled Diffusion Transformer."
+> *arXiv preprint arXiv:2510.12747*, 2025.
+> [[arXiv]](https://arxiv.org/abs/2510.12747) [[GitHub]](https://github.com/OpenImagingLab/FlashVSR)
+
+```bibtex
+@article{zhuang2025flashvsr,
+  title={FlashVSR: Efficient Real-World Video Super-Resolution via Distilled Diffusion Transformer},
+  author={Zhuang, Junhao and Lin, Ting-Che and Zhong, Xin and Pan, Zhihong and Yuan, Chun and Zeng, Ailing},
+  journal={arXiv preprint arXiv:2510.12747},
+  year={2025}
+}
+```
+
 ## License
 
 The BiM-VFI model weights and architecture code are provided by KAIST VIC Lab for **research and education purposes only**. Commercial use requires permission from the principal investigator (Prof. Munchurl Kim, mkimee@kaist.ac.kr). See the [original repository](https://github.com/KAIST-VICLab/BiM-VFI) for details.
@@ -252,3 +337,5 @@ The EMA-VFI model weights and architecture code are released under the [Apache 2
 The SGM-VFI model weights and architecture code are released under the [Apache 2.0 License](https://github.com/MCG-NJU/SGM-VFI/blob/main/LICENSE). See the [original repository](https://github.com/MCG-NJU/SGM-VFI) for details.
 
 The GIMM-VFI model weights and architecture code are released under the [Apache 2.0 License](https://github.com/GSeanCDAT/GIMM-VFI/blob/main/LICENSE). See the [original repository](https://github.com/GSeanCDAT/GIMM-VFI) for details. ComfyUI adaptation based on [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/ComfyUI-GIMM-VFI).
+
+The FlashVSR model weights and architecture code are released under the [Apache 2.0 License](https://github.com/OpenImagingLab/FlashVSR/blob/main/LICENSE). See the [original repository](https://github.com/OpenImagingLab/FlashVSR) for details. Architecture files adapted from [1038lab/ComfyUI-FlashVSR](https://github.com/1038lab/ComfyUI-FlashVSR).

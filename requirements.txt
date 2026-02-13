@@ -4,3 +4,4 @@ yacs
 easydict
 einops
 huggingface_hub
+safetensors
