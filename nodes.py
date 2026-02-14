@@ -219,6 +219,7 @@ class BIMVFIInterpolate:
             Interpolated frames as [M, C, H, W] tensor on storage_device
         """
         for pass_idx in range(num_passes):
+            logger.info(f"BIM-VFI: pass {pass_idx + 1}/{num_passes}, {frames.shape[0]} -> {2 * frames.shape[0] - 1} frames")
             new_frames = []
             num_pairs = frames.shape[0] - 1
             pairs_since_clear = 0
@@ -290,6 +291,18 @@ class BIMVFIInterpolate:
             num_passes = {2: 1, 4: 2, 8: 3}[multiplier]
             mult = multiplier
 
+        N = images.shape[0]
+        expected = mult * (N - 1) + 1
+        if use_target_fps:
+            if num_passes == 0:
+                expected = int(math.floor((N - 1) / source_fps * target_fps)) + 1
+                logger.info(f"BIM-VFI: {N} frames, {source_fps}fps -> {target_fps}fps (downsampling), expected output: {expected} frames")
+            else:
+                expected_target = int(math.floor((N - 1) / source_fps * target_fps)) + 1
+                logger.info(f"BIM-VFI: interpolating {N} frames, {source_fps}fps -> {target_fps}fps (oversample {mult}x, {num_passes} pass(es)), expected output: {expected_target} frames")
+        else:
+            logger.info(f"BIM-VFI: interpolating {N} frames, {mult}x ({num_passes} pass(es)), expected output: {expected} frames")
+
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         if all_on_gpu:
@@ -313,6 +326,9 @@ class BIMVFIInterpolate:
                 start = end - 1  # overlap by 1 frame
                 if end == total_input:
                     break
+
+        if len(chunks) > 1:
+            logger.info(f"BIM-VFI: processing in {len(chunks)} chunk(s)")
 
         # Calculate total progress steps across all chunks
         total_steps = sum(self._count_steps(ce - cs, num_passes) for cs, ce in chunks)
@@ -353,6 +369,7 @@ class BIMVFIInterpolate:
 
         # Convert back to ComfyUI [B, H, W, C], on CPU
         result = result.cpu().permute(0, 2, 3, 1)
+        logger.info(f"BIM-VFI: done, {result.shape[0]} output frames")
         return (result, oversampled)
 
 
@@ -401,6 +418,7 @@ class BIMVFISegmentInterpolate(BIMVFIInterpolate):
             return (images[:1], model)
 
         segment_images = images[start:end]
+        logger.info(f"BIM-VFI segment {segment_index}: input frames [{start}:{end}] of {total_input}")
 
         if use_target_fps:
             num_passes, mult = _compute_target_fps_params(source_fps, target_fps)
@@ -419,6 +437,8 @@ class BIMVFISegmentInterpolate(BIMVFIInterpolate):
 
             if j_start > j_end:
                 return (images[:1], model)
+
+            logger.info(f"BIM-VFI segment {segment_index}: target fps output j=[{j_start}..{j_end}]")
 
             if num_passes == 0:
                 # Downsampling — select from segment input directly
@@ -750,6 +770,7 @@ class EMAVFIInterpolate:
                             clear_cache_after_n_frames, pbar, step_ref):
         """Run all interpolation passes on a chunk of frames."""
         for pass_idx in range(num_passes):
+            logger.info(f"EMA-VFI: pass {pass_idx + 1}/{num_passes}, {frames.shape[0]} -> {2 * frames.shape[0] - 1} frames")
             new_frames = []
             num_pairs = frames.shape[0] - 1
             pairs_since_clear = 0
@@ -820,6 +841,18 @@ class EMAVFIInterpolate:
             num_passes = {2: 1, 4: 2, 8: 3}[multiplier]
             mult = multiplier
 
+        N = images.shape[0]
+        expected = mult * (N - 1) + 1
+        if use_target_fps:
+            if num_passes == 0:
+                expected = int(math.floor((N - 1) / source_fps * target_fps)) + 1
+                logger.info(f"EMA-VFI: {N} frames, {source_fps}fps -> {target_fps}fps (downsampling), expected output: {expected} frames")
+            else:
+                expected_target = int(math.floor((N - 1) / source_fps * target_fps)) + 1
+                logger.info(f"EMA-VFI: interpolating {N} frames, {source_fps}fps -> {target_fps}fps (oversample {mult}x, {num_passes} pass(es)), expected output: {expected_target} frames")
+        else:
+            logger.info(f"EMA-VFI: interpolating {N} frames, {mult}x ({num_passes} pass(es)), expected output: {expected} frames")
+
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         if all_on_gpu:
@@ -843,6 +876,9 @@ class EMAVFIInterpolate:
                 start = end - 1  # overlap by 1 frame
                 if end == total_input:
                     break
+
+        if len(chunks) > 1:
+            logger.info(f"EMA-VFI: processing in {len(chunks)} chunk(s)")
 
         # Calculate total progress steps across all chunks
         total_steps = sum(self._count_steps(ce - cs, num_passes) for cs, ce in chunks)
@@ -883,6 +919,7 @@ class EMAVFIInterpolate:
 
         # Convert back to ComfyUI [B, H, W, C], on CPU
         result = result.cpu().permute(0, 2, 3, 1)
+        logger.info(f"EMA-VFI: done, {result.shape[0]} output frames")
         return (result, oversampled)
 
 
@@ -930,6 +967,7 @@ class EMAVFISegmentInterpolate(EMAVFIInterpolate):
             return (images[:1], model)
 
         segment_images = images[start:end]
+        logger.info(f"EMA-VFI segment {segment_index}: input frames [{start}:{end}] of {total_input}")
 
         if use_target_fps:
             num_passes, mult = _compute_target_fps_params(source_fps, target_fps)
@@ -947,6 +985,8 @@ class EMAVFISegmentInterpolate(EMAVFIInterpolate):
 
             if j_start > j_end:
                 return (images[:1], model)
+
+            logger.info(f"EMA-VFI segment {segment_index}: target fps output j=[{j_start}..{j_end}]")
 
             if num_passes == 0:
                 oversampled_fps = source_fps * mult
@@ -1144,6 +1184,7 @@ class SGMVFIInterpolate:
                             clear_cache_after_n_frames, pbar, step_ref):
         """Run all interpolation passes on a chunk of frames."""
         for pass_idx in range(num_passes):
+            logger.info(f"SGM-VFI: pass {pass_idx + 1}/{num_passes}, {frames.shape[0]} -> {2 * frames.shape[0] - 1} frames")
             new_frames = []
             num_pairs = frames.shape[0] - 1
             pairs_since_clear = 0
@@ -1214,6 +1255,18 @@ class SGMVFIInterpolate:
             num_passes = {2: 1, 4: 2, 8: 3}[multiplier]
             mult = multiplier
 
+        N = images.shape[0]
+        expected = mult * (N - 1) + 1
+        if use_target_fps:
+            if num_passes == 0:
+                expected = int(math.floor((N - 1) / source_fps * target_fps)) + 1
+                logger.info(f"SGM-VFI: {N} frames, {source_fps}fps -> {target_fps}fps (downsampling), expected output: {expected} frames")
+            else:
+                expected_target = int(math.floor((N - 1) / source_fps * target_fps)) + 1
+                logger.info(f"SGM-VFI: interpolating {N} frames, {source_fps}fps -> {target_fps}fps (oversample {mult}x, {num_passes} pass(es)), expected output: {expected_target} frames")
+        else:
+            logger.info(f"SGM-VFI: interpolating {N} frames, {mult}x ({num_passes} pass(es)), expected output: {expected} frames")
+
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         if all_on_gpu:
@@ -1237,6 +1290,9 @@ class SGMVFIInterpolate:
                 start = end - 1  # overlap by 1 frame
                 if end == total_input:
                     break
+
+        if len(chunks) > 1:
+            logger.info(f"SGM-VFI: processing in {len(chunks)} chunk(s)")
 
         # Calculate total progress steps across all chunks
         total_steps = sum(self._count_steps(ce - cs, num_passes) for cs, ce in chunks)
@@ -1277,6 +1333,7 @@ class SGMVFIInterpolate:
 
         # Convert back to ComfyUI [B, H, W, C], on CPU
         result = result.cpu().permute(0, 2, 3, 1)
+        logger.info(f"SGM-VFI: done, {result.shape[0]} output frames")
         return (result, oversampled)
 
 
@@ -1324,6 +1381,7 @@ class SGMVFISegmentInterpolate(SGMVFIInterpolate):
             return (images[:1], model)
 
         segment_images = images[start:end]
+        logger.info(f"SGM-VFI segment {segment_index}: input frames [{start}:{end}] of {total_input}")
 
         if use_target_fps:
             num_passes, mult = _compute_target_fps_params(source_fps, target_fps)
@@ -1341,6 +1399,8 @@ class SGMVFISegmentInterpolate(SGMVFIInterpolate):
 
             if j_start > j_end:
                 return (images[:1], model)
+
+            logger.info(f"SGM-VFI segment {segment_index}: target fps output j=[{j_start}..{j_end}]")
 
             if num_passes == 0:
                 oversampled_fps = source_fps * mult
@@ -1555,6 +1615,7 @@ class GIMMVFIInterpolate:
                                         clear_cache_after_n_frames, pbar, step_ref):
         """Single-pass interpolation using GIMM-VFI's arbitrary timestep capability."""
         num_intermediates = multiplier - 1
+        logger.info(f"GIMM-VFI: single-pass {multiplier}x, {frames.shape[0]} input frames, {num_intermediates} intermediates/pair")
         new_frames = []
         num_pairs = frames.shape[0] - 1
         pairs_since_clear = 0
@@ -1599,6 +1660,7 @@ class GIMMVFIInterpolate:
                             clear_cache_after_n_frames, pbar, step_ref):
         """Recursive 2x interpolation (standard approach, same as other models)."""
         for pass_idx in range(num_passes):
+            logger.info(f"GIMM-VFI: pass {pass_idx + 1}/{num_passes}, {frames.shape[0]} -> {2 * frames.shape[0] - 1} frames")
             new_frames = []
             num_pairs = frames.shape[0] - 1
             pairs_since_clear = 0
@@ -1671,6 +1733,18 @@ class GIMMVFIInterpolate:
         else:
             mult = multiplier
 
+        N = images.shape[0]
+        expected = mult * (N - 1) + 1
+        if use_target_fps:
+            if num_passes == 0:
+                expected = int(math.floor((N - 1) / source_fps * target_fps)) + 1
+                logger.info(f"GIMM-VFI: {N} frames, {source_fps}fps -> {target_fps}fps (downsampling), expected output: {expected} frames")
+            else:
+                expected_target = int(math.floor((N - 1) / source_fps * target_fps)) + 1
+                logger.info(f"GIMM-VFI: interpolating {N} frames, {source_fps}fps -> {target_fps}fps (oversample {mult}x, {num_passes} pass(es)), expected output: {expected_target} frames")
+        else:
+            logger.info(f"GIMM-VFI: interpolating {N} frames, {mult}x ({num_passes if not single_pass else 'single-pass'}), expected output: {expected} frames")
+
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         if not single_pass or use_target_fps:
@@ -1700,6 +1774,9 @@ class GIMMVFIInterpolate:
                 start = end - 1  # overlap by 1 frame
                 if end == total_input:
                     break
+
+        if len(chunks) > 1:
+            logger.info(f"GIMM-VFI: processing in {len(chunks)} chunk(s)")
 
         # Calculate total progress steps across all chunks
         if single_pass:
@@ -1750,6 +1827,7 @@ class GIMMVFIInterpolate:
 
         # Convert back to ComfyUI [B, H, W, C], on CPU
         result = result.cpu().permute(0, 2, 3, 1)
+        logger.info(f"GIMM-VFI: done, {result.shape[0]} output frames")
         return (result, oversampled)
 
 
@@ -1797,6 +1875,7 @@ class GIMMVFISegmentInterpolate(GIMMVFIInterpolate):
             return (images[:1], model)
 
         segment_images = images[start:end]
+        logger.info(f"GIMM-VFI segment {segment_index}: input frames [{start}:{end}] of {total_input}")
 
         if use_target_fps:
             num_passes, mult = _compute_target_fps_params(source_fps, target_fps)
@@ -1814,6 +1893,8 @@ class GIMMVFISegmentInterpolate(GIMMVFIInterpolate):
 
             if j_start > j_end:
                 return (images[:1], model)
+
+            logger.info(f"GIMM-VFI segment {segment_index}: target fps output j=[{j_start}..{j_end}]")
 
             if num_passes == 0:
                 oversampled_fps = source_fps * mult
