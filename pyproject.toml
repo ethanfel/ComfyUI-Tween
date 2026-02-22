@@ -1,0 +1,22 @@
+[project]
+name = "comfyui-tween"
+description = "Video frame interpolation nodes for ComfyUI using BIM-VFI, EMA-VFI, SGM-VFI, and GIMM-VFI. Designed for long videos with thousands of frames."
+version = "1.0.0"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+dependencies = [
+    "gdown",
+    "timm",
+    "omegaconf",
+    "yacs",
+    "easydict",
+    "einops",
+    "huggingface_hub",
+]
+
+[project.urls]
+Repository = "https://github.com/Ethanfel/ComfyUI-Tween"
+
+[tool.comfy]
+PublisherId = "ethanfel"
+DisplayName = "Tween - Video Frame Interpolation"
