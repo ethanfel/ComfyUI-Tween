@@ -149,35 +149,32 @@ Same as GIMM-VFI Interpolate but processes a single segment. Same pattern as BIM
 
 ## Installation
 
-Clone into your ComfyUI `custom_nodes/` directory:
+Install from the [ComfyUI Registry](https://registry.comfy.org/) or clone into your ComfyUI `custom_nodes/` directory:
 
 ```bash
 cd ComfyUI/custom_nodes
 git clone https://github.com/Ethanfel/ComfyUI-Tween.git
+pip install -r requirements.txt
 ```
 
-Dependencies (`gdown`, `cupy`, `timm`, `omegaconf`, `easydict`, `yacs`, `einops`, `huggingface_hub`) are auto-installed on first load. The correct `cupy` variant is detected from your PyTorch CUDA version.
+### cupy
 
-> **Warning:** `cupy` is a large package (~800MB) and compilation/installation can take several minutes. The first ComfyUI startup after installing this node may appear to hang while `cupy` installs in the background. Check the console log for progress. If auto-install fails (e.g. missing build tools in Docker), install manually with:
-> ```bash
-> pip install cupy-cuda12x  # replace 12 with your CUDA major version
-> ```
-
-To install manually:
+`cupy` is required for BIM-VFI, SGM-VFI, and GIMM-VFI (optical flow warping). It will be auto-installed on first load based on your PyTorch CUDA version. If auto-install fails, install manually:
 
 ```bash
-cd ComfyUI-Tween
-python install.py
+pip install cupy-cuda12x  # replace 12 with your CUDA major version (11 or 12)
 ```
 
 ### Requirements
 
 - PyTorch with CUDA
-- `cupy` (matching your CUDA version, for BIM-VFI, SGM-VFI, and GIMM-VFI)
+- `cupy` (matching your CUDA version — for BIM-VFI, SGM-VFI, and GIMM-VFI)
 - `timm` (for EMA-VFI and SGM-VFI)
 - `gdown` (for BIM-VFI/EMA-VFI/SGM-VFI model auto-download)
 - `omegaconf`, `easydict`, `yacs`, `einops` (for GIMM-VFI)
 - `huggingface_hub` (for GIMM-VFI model auto-download)
+
+All dependencies except `cupy` are listed in `pyproject.toml` and installed automatically by ComfyUI Manager or pip.
 
 ## VRAM Guide
 

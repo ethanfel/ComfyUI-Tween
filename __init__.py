@@ -5,45 +5,35 @@ import logging
 logger = logging.getLogger("Tween")
 
 
-def _auto_install_deps():
-    """Auto-install missing dependencies on first load."""
-    # gdown
-    try:
-        import gdown  # noqa: F401
-    except ImportError:
-        logger.info("[Tween] Installing gdown...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
-
-    # timm (required for EMA-VFI's MotionFormer backbone)
-    try:
-        import timm  # noqa: F401
-    except ImportError:
-        logger.info("[Tween] Installing timm...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "timm"])
-
-    # cupy
+def _ensure_cupy():
+    """Try to auto-install cupy if missing, matching the PyTorch CUDA version."""
     try:
         import cupy  # noqa: F401
+        return
     except ImportError:
-        try:
-            import torch
-            major = int(torch.version.cuda.split(".")[0])
-            cupy_pkg = f"cupy-cuda{major}x"
-            logger.info(f"[Tween] Installing {cupy_pkg} (CUDA {torch.version.cuda})...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", cupy_pkg])
-        except Exception as e:
-            logger.warning(f"[Tween] Could not auto-install cupy: {e}")
+        pass
 
-    # GIMM-VFI dependencies
-    for pkg in ("omegaconf", "yacs", "easydict", "einops", "huggingface_hub"):
-        try:
-            __import__(pkg)
-        except ImportError:
-            logger.info(f"[Tween] Installing {pkg}...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+    try:
+        import torch
+        if not torch.cuda.is_available() or not hasattr(torch.version, "cuda") or torch.version.cuda is None:
+            logger.warning(
+                "[Tween] CUDA not available — cupy cannot be installed. "
+                "SGM-VFI and GIMM-VFI require CUDA."
+            )
+            return
+        major = int(torch.version.cuda.split(".")[0])
+        cupy_pkg = f"cupy-cuda{major}x"
+        logger.info(f"[Tween] Installing {cupy_pkg} (CUDA {torch.version.cuda})...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", cupy_pkg])
+    except Exception as e:
+        logger.warning(
+            f"[Tween] Could not auto-install cupy: {e}\n"
+            f"[Tween] SGM-VFI and GIMM-VFI will not work without cupy. Install manually:\n"
+            f"[Tween]   pip install cupy-cuda12x  # replace 12 with your CUDA major version"
+        )
 
 
-_auto_install_deps()
+_ensure_cupy()
 
 from .nodes import (
     LoadBIMVFIModel, BIMVFIInterpolate, BIMVFISegmentInterpolate, TweenConcatVideos,
