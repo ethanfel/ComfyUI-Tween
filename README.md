@@ -1,40 +1,86 @@
-# ComfyUI BIM-VFI + EMA-VFI + SGM-VFI + GIMM-VFI
+# Tween — Video Frame Interpolation for ComfyUI
 
-ComfyUI custom nodes for video frame interpolation using [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VFI) (CVPR 2025), [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI) (CVPR 2023), [SGM-VFI](https://github.com/MCG-NJU/SGM-VFI) (CVPR 2024), and [GIMM-VFI](https://github.com/GSeanCDAT/GIMM-VFI) (NeurIPS 2024). Designed for long videos with thousands of frames — processes them without running out of VRAM.
+[![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom_Node-0a7ef0)](https://registry.comfy.org/)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Models](https://img.shields.io/badge/VFI_Models-4-8B5CF6)](#which-model-should-i-use)
+
+Four video frame interpolation models in one package — **BIM-VFI**, **EMA-VFI**, **SGM-VFI**, and **GIMM-VFI**. Designed for long videos with thousands of frames without running out of VRAM.
+
+<p align="center">
+  <img src="assets/model-comparison.svg" alt="Model Comparison" width="720"/>
+</p>
+
+## Installation
+
+Install from the [ComfyUI Registry](https://registry.comfy.org/) (recommended) or clone manually:
+
+```bash
+cd ComfyUI/custom_nodes
+git clone https://github.com/Ethanfel/ComfyUI-Tween.git
+pip install -r requirements.txt
+```
+
+All dependencies (`gdown`, `timm`, `omegaconf`, `easydict`, `yacs`, `einops`, `huggingface_hub`) are declared in `pyproject.toml` and `requirements.txt`, installed automatically by ComfyUI Manager or pip.
+
+### cupy (required for BIM-VFI, SGM-VFI, GIMM-VFI)
+
+[cupy](https://cupy.dev/) provides GPU-accelerated optical flow warping. **EMA-VFI works without it.**
+
+1. Find your CUDA version:
+   ```bash
+   python -c "import torch; print(torch.version.cuda)"
+   ```
+
+2. Install the matching package:
+
+   | CUDA | Command |
+   |------|---------|
+   | 12.x | `pip install cupy-cuda12x` |
+   | 11.x | `pip install cupy-cuda11x` |
+
+> Make sure to run pip in the same Python environment as ComfyUI. If cupy is missing, the Load node shows an error with your CUDA version and the exact install command.
+
+<details>
+<summary>cupy troubleshooting</summary>
+
+| Problem | Solution |
+|---------|----------|
+| `ModuleNotFoundError: No module named 'cupy'` | Install cupy using the steps above |
+| `cupy` installed but `ImportError` at runtime | CUDA version mismatch — uninstall and reinstall the correct version |
+| Install hangs or takes very long | cupy wheels are ~800 MB, be patient |
+| Docker / no build tools | Use the prebuilt wheel: `pip install cupy-cuda12x` (not bare `cupy` which compiles from source) |
+
+</details>
 
 ## Which model should I use?
 
 | | BIM-VFI | EMA-VFI | SGM-VFI | GIMM-VFI |
 |---|---------|---------|---------|----------|
-| **Best for** | General-purpose, non-uniform motion | Fast inference, light VRAM | Large motion, occlusion-heavy scenes | High multipliers (4x/8x) in a single pass |
-| **Quality** | Highest overall | Good | Best on large motion | Good |
-| **Speed** | Moderate | Fastest | Slowest | Fast for 4x/8x (single pass) |
+| **Best for** | General-purpose | Fast, low VRAM | Large motion | High multipliers (4x/8x) |
+| **Quality** | Highest | Good | Best on large motion | Good |
+| **Speed** | Moderate | Fastest | Slowest | Fast for 4x/8x |
 | **VRAM** | ~2 GB/pair | ~1.5 GB/pair | ~3 GB/pair | ~2.5 GB/pair |
-| **Params** | ~17M | ~14–65M | ~15M + GMFlow | ~80M (RAFT) / ~123M (FlowFormer) |
-| **Arbitrary timestep** | Yes | Yes (with `_t` checkpoint) | No (fixed 0.5) | Yes (native single-pass) |
-| **4x/8x mode** | Recursive 2x passes | Recursive 2x passes | Recursive 2x passes | Single forward pass (or recursive) |
+| **Params** | ~17 M | ~14–65 M | ~15 M + GMFlow | ~80 M (RAFT) / ~123 M (FlowFormer) |
+| **Arbitrary timestep** | Yes | Yes (`_t` checkpoint) | No (fixed 0.5) | Yes (native) |
+| **4x/8x** | Recursive passes | Recursive passes | Recursive passes | Single forward pass |
+| **Requires cupy** | Yes | No | Yes | Yes |
 | **Paper** | CVPR 2025 | CVPR 2023 | CVPR 2024 | NeurIPS 2024 |
-| **License** | Research only | Apache 2.0 | Apache 2.0 | Apache 2.0 |
 
-**TL;DR:** Start with **BIM-VFI** for best quality. Use **EMA-VFI** if you need speed or lower VRAM. Use **SGM-VFI** if your video has large camera motion or fast-moving objects that the others struggle with. Use **GIMM-VFI** when you want 4x or 8x interpolation without recursive passes — it generates all intermediate frames in a single forward pass per pair.
+**TL;DR:** Start with **BIM-VFI** for best quality. Use **EMA-VFI** for speed or if you can't install cupy. Use **SGM-VFI** for large camera motion. Use **GIMM-VFI** for 4x/8x without recursive passes.
+
+## VRAM Guide
+
+| VRAM | Recommended settings |
+|------|----------------------|
+| 8 GB | `batch_size=1, chunk_size=500` |
+| 24 GB | `batch_size=2–4, chunk_size=1000` |
+| 48 GB+ | `batch_size=4–16, all_on_gpu=true` |
+| 96 GB+ | `batch_size=8–16, all_on_gpu=true, chunk_size=0` |
 
 ## Nodes
 
-### BIM-VFI
-
-#### Load BIM-VFI Model
-
-Loads the BiM-VFI checkpoint. Auto-downloads from Google Drive on first use to `ComfyUI/models/bim-vfi/`.
-
-| Input | Description |
-|-------|-------------|
-| **model_path** | Checkpoint file from `models/bim-vfi/` |
-| **auto_pyr_level** | Auto-select pyramid level by resolution (&lt;540p=3, 540p=5, 1080p=6, 4K=7) |
-| **pyr_level** | Manual pyramid level (3-7), only used when auto is off |
-
-#### BIM-VFI Interpolate
-
-Interpolates frames from an image batch.
+All Interpolate nodes share a common set of controls:
 
 | Input | Description |
 |-------|-------------|
@@ -42,8 +88,8 @@ Interpolates frames from an image batch.
 | **model** | Model from the loader node |
 | **multiplier** | 2x, 4x, or 8x frame rate (recursive 2x passes) |
 | **batch_size** | Frame pairs processed simultaneously (higher = faster, more VRAM) |
-| **chunk_size** | Process in segments of N input frames (0 = disabled). Bounds VRAM for very long videos. Result is identical to processing all at once |
-| **keep_device** | Keep model on GPU between pairs (faster, ~200MB constant VRAM) |
+| **chunk_size** | Process in segments of N input frames (0 = disabled). Bounds VRAM for very long videos |
+| **keep_device** | Keep model on GPU between pairs (faster, ~200 MB constant VRAM) |
 | **all_on_gpu** | Keep all intermediate frames on GPU (fast, needs large VRAM) |
 | **clear_cache_after_n_frames** | Clear CUDA cache every N pairs to prevent VRAM buildup |
 | **source_fps** | Input frame rate. Required when target_fps > 0 |
@@ -52,171 +98,132 @@ Interpolates frames from an image batch.
 | Output | Description |
 |--------|-------------|
 | **images** | Interpolated frames at the target FPS (or at the multiplied rate when target_fps = 0) |
-| **oversampled** | Full power-of-2 oversampled frames before target FPS selection. Same as `images` when target_fps = 0. Useful for inspecting the raw interpolation or feeding into another pipeline |
+| **oversampled** | Full power-of-2 oversampled frames before target FPS selection. Same as `images` when target_fps = 0 |
+
+<details>
+<summary><strong>BIM-VFI</strong></summary>
+
+#### Load BIM-VFI Model
+
+Loads the BiM-VFI checkpoint. Auto-downloads from Google Drive on first use to `ComfyUI/models/bim-vfi/`.
+
+| Input | Description |
+|-------|-------------|
+| **model_path** | Checkpoint from `models/bim-vfi/` |
+| **auto_pyr_level** | Auto pyramid level by resolution (&lt;540p=3, 540p=5, 1080p=6, 4K=7) |
+| **pyr_level** | Manual pyramid level (3–7), used when auto is off |
+
+#### BIM-VFI Interpolate
+
+Common controls listed above.
 
 #### BIM-VFI Segment Interpolate
 
-Same as Interpolate but processes a single segment of the input. Chain multiple instances with Save nodes between them to bound peak RAM. The model pass-through output forces sequential execution.
+Processes a single segment of the input. Chain multiple instances with Save nodes between them to bound peak RAM. The model pass-through output forces sequential execution.
+
+</details>
+
+<details>
+<summary><strong>EMA-VFI</strong></summary>
+
+#### Load EMA-VFI Model
+
+Auto-downloads from Google Drive to `ComfyUI/models/ema-vfi/`. Variant and timestep support are auto-detected from the filename.
+
+| Input | Description |
+|-------|-------------|
+| **model_path** | Checkpoint from `models/ema-vfi/` |
+| **tta** | Test-time augmentation (~2x slower, slightly better quality) |
+
+| Checkpoint | Variant | Params | Arbitrary timestep |
+|-----------|---------|--------|-------------------|
+| `ours_t.pkl` | Large | ~65 M | Yes |
+| `ours.pkl` | Large | ~65 M | No (fixed 0.5) |
+| `ours_small_t.pkl` | Small | ~14 M | Yes |
+| `ours_small.pkl` | Small | ~14 M | No (fixed 0.5) |
+
+#### EMA-VFI Interpolate / Segment Interpolate
+
+Same controls as above.
+
+</details>
+
+<details>
+<summary><strong>SGM-VFI</strong></summary>
+
+#### Load SGM-VFI Model
+
+Auto-downloads from Google Drive to `ComfyUI/models/sgm-vfi/`. Requires cupy.
+
+| Input | Description |
+|-------|-------------|
+| **model_path** | Checkpoint from `models/sgm-vfi/` |
+| **tta** | Test-time augmentation (~2x slower, slightly better quality) |
+| **num_key_points** | Global matching sparsity (0.0 = global everywhere, 0.5 = default, higher = faster) |
+
+| Checkpoint | Variant | Params |
+|-----------|---------|--------|
+| `ours-1-2-points.pkl` | Small | ~15 M + GMFlow |
+
+#### SGM-VFI Interpolate / Segment Interpolate
+
+Same controls as above.
+
+</details>
+
+<details>
+<summary><strong>GIMM-VFI</strong></summary>
+
+#### Load GIMM-VFI Model
+
+Auto-downloads from [HuggingFace](https://huggingface.co/Kijai/GIMM-VFI_safetensors) to `ComfyUI/models/gimm-vfi/`. The matching flow estimator (RAFT or FlowFormer) is auto-detected and downloaded alongside.
+
+| Input | Description |
+|-------|-------------|
+| **model_path** | Checkpoint from `models/gimm-vfi/` |
+| **ds_factor** | Downscale factor for internal processing (1.0 = full, 0.5 = half). Try 0.5 for 4K inputs |
+
+| Checkpoint | Variant | Params | Flow estimator (auto-downloaded) |
+|-----------|---------|--------|----------------------------------|
+| `gimmvfi_r_arb_lpips_fp32.safetensors` | RAFT | ~80 M | `raft-things_fp32.safetensors` |
+| `gimmvfi_f_arb_lpips_fp32.safetensors` | FlowFormer | ~123 M | `flowformer_sintel_fp32.safetensors` |
+
+#### GIMM-VFI Interpolate
+
+Common controls plus:
+
+| Input | Description |
+|-------|-------------|
+| **single_pass** | Generate all intermediate frames per pair in one forward pass (default on). No recursive 2x passes needed for 4x/8x. Disable to use the standard recursive approach |
+
+#### GIMM-VFI Segment Interpolate
+
+Same pattern as other Segment nodes.
+
+</details>
 
 ### Tween Concat Videos
 
 Concatenates segment video files into a single video using ffmpeg. Connect from any Segment Interpolate's model output to ensure it runs after all segments are saved. Works with all four models.
 
-### EMA-VFI
+### Output frame count
 
-#### Load EMA-VFI Model
-
-Loads an EMA-VFI checkpoint. Auto-downloads from Google Drive on first use to `ComfyUI/models/ema-vfi/`. Variant (large/small) and timestep support are auto-detected from the filename.
-
-| Input | Description |
-|-------|-------------|
-| **model_path** | Checkpoint file from `models/ema-vfi/` |
-| **tta** | Test-time augmentation: flip input and average with unflipped result (~2x slower, slightly better quality) |
-
-Available checkpoints:
-| Checkpoint | Variant | Params | Arbitrary timestep |
-|-----------|---------|--------|-------------------|
-| `ours_t.pkl` | Large | ~65M | Yes |
-| `ours.pkl` | Large | ~65M | No (fixed 0.5) |
-| `ours_small_t.pkl` | Small | ~14M | Yes |
-| `ours_small.pkl` | Small | ~14M | No (fixed 0.5) |
-
-#### EMA-VFI Interpolate
-
-Interpolates frames from an image batch. Same controls as BIM-VFI Interpolate (including target FPS mode).
-
-#### EMA-VFI Segment Interpolate
-
-Same as EMA-VFI Interpolate but processes a single segment. Same pattern as BIM-VFI Segment Interpolate.
-
-### SGM-VFI
-
-#### Load SGM-VFI Model
-
-Loads an SGM-VFI checkpoint. Auto-downloads from Google Drive on first use to `ComfyUI/models/sgm-vfi/`. Variant (base/small) is auto-detected from the filename (default is small).
-
-| Input | Description |
-|-------|-------------|
-| **model_path** | Checkpoint file from `models/sgm-vfi/` |
-| **tta** | Test-time augmentation: flip input and average with unflipped result (~2x slower, slightly better quality) |
-| **num_key_points** | Sparsity of global matching (0.0 = global everywhere, 0.5 = default balance, higher = faster) |
-
-Available checkpoints:
-| Checkpoint | Variant | Params |
-|-----------|---------|--------|
-| `ours-1-2-points.pkl` | Small | ~15M + GMFlow |
-
-#### SGM-VFI Interpolate
-
-Interpolates frames from an image batch. Same controls as BIM-VFI Interpolate (including target FPS mode).
-
-#### SGM-VFI Segment Interpolate
-
-Same as SGM-VFI Interpolate but processes a single segment. Same pattern as BIM-VFI Segment Interpolate.
-
-### GIMM-VFI
-
-#### Load GIMM-VFI Model
-
-Loads a GIMM-VFI checkpoint. Auto-downloads from [HuggingFace](https://huggingface.co/Kijai/GIMM-VFI_safetensors) on first use to `ComfyUI/models/gimm-vfi/`. The matching flow estimator (RAFT or FlowFormer) is auto-detected and downloaded alongside the main model.
-
-| Input | Description |
-|-------|-------------|
-| **model_path** | Checkpoint file from `models/gimm-vfi/` |
-| **ds_factor** | Downscale factor for internal processing (1.0 = full res, 0.5 = half). Lower = less VRAM, faster, less quality. Try 0.5 for 4K inputs |
-
-Available checkpoints:
-| Checkpoint | Variant | Params | Flow estimator (auto-downloaded) |
-|-----------|---------|--------|----------------------------------|
-| `gimmvfi_r_arb_lpips_fp32.safetensors` | RAFT | ~80M | `raft-things_fp32.safetensors` |
-| `gimmvfi_f_arb_lpips_fp32.safetensors` | FlowFormer | ~123M | `flowformer_sintel_fp32.safetensors` |
-
-#### GIMM-VFI Interpolate
-
-Interpolates frames from an image batch. Same controls as BIM-VFI Interpolate (including target FPS mode), plus:
-
-| Input | Description |
-|-------|-------------|
-| **single_pass** | When enabled (default), generates all intermediate frames per pair in one forward pass using GIMM-VFI's arbitrary-timestep capability. No recursive 2x passes needed for 4x or 8x. Disable to use the standard recursive approach (same as BIM/EMA/SGM) |
-
-#### GIMM-VFI Segment Interpolate
-
-Same as GIMM-VFI Interpolate but processes a single segment. Same pattern as BIM-VFI Segment Interpolate.
-
-**Output frame count (all models):**
-- Multiplier mode: 2x = 2N-1, 4x = 4N-3, 8x = 8N-7
-- Target FPS mode: `floor((N-1) / source_fps * target_fps) + 1` frames. Automatically oversamples to the nearest power-of-2 above the ratio, then selects frames at exact target timestamps. Downsampling (target < source) also works — frames are selected from the input with no model calls
-
-## Installation
-
-Install from the [ComfyUI Registry](https://registry.comfy.org/) or clone into your ComfyUI `custom_nodes/` directory:
-
-```bash
-cd ComfyUI/custom_nodes
-git clone https://github.com/Ethanfel/ComfyUI-Tween.git
-pip install -r requirements.txt
-```
-
-### cupy (required for BIM-VFI, SGM-VFI, GIMM-VFI)
-
-[cupy](https://cupy.dev/) is a GPU-accelerated array library used for optical flow warping. It is required by **BIM-VFI**, **SGM-VFI**, and **GIMM-VFI**. EMA-VFI does **not** need cupy and works without it.
-
-cupy must match your PyTorch CUDA version. If it is missing or mismatched, the Load node will show an error in ComfyUI with your CUDA version and the exact install command.
-
-#### How to install cupy
-
-**Step 1 — Find your CUDA version:**
-
-```bash
-python -c "import torch; print(torch.version.cuda)"
-```
-
-This prints something like `12.4` or `11.8`.
-
-**Step 2 — Install the matching cupy package:**
-
-| CUDA version | Install command |
-|---|---|
-| 12.x | `pip install cupy-cuda12x` |
-| 11.x | `pip install cupy-cuda11x` |
-
-> **Note:** Make sure to run pip in the same Python environment as ComfyUI. If you use a venv or conda, activate it first.
-
-#### Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| `ModuleNotFoundError: No module named 'cupy'` | Install cupy using the steps above |
-| `cupy` installed but `ImportError` at runtime | CUDA version mismatch — uninstall with `pip uninstall cupy-cuda12x` and reinstall the correct version |
-| Install hangs or takes very long | cupy wheels are large (~800MB). Use a fast connection and be patient |
-| Docker / no build tools | Use the prebuilt wheel: `pip install cupy-cuda12x` (not `cupy` which compiles from source) |
-
-#### Can I skip cupy?
-
-Yes — just use **EMA-VFI**, which does not require cupy. It is the fastest model and uses the least VRAM. The other three models (BIM-VFI, SGM-VFI, GIMM-VFI) will not load without cupy.
-
-### Other dependencies
-
-All other dependencies (`gdown`, `timm`, `omegaconf`, `easydict`, `yacs`, `einops`, `huggingface_hub`) are listed in `pyproject.toml` and `requirements.txt`, and are installed automatically by ComfyUI Manager or pip.
-
-## VRAM Guide
-
-| VRAM | Recommended settings |
-|------|---------------------|
-| 8 GB | batch_size=1, chunk_size=500 |
-| 24 GB | batch_size=2-4, chunk_size=1000 |
-| 48 GB+ | batch_size=4-16, all_on_gpu=true |
-| 96 GB+ | batch_size=8-16, all_on_gpu=true, chunk_size=0 |
+- **Multiplier mode:** 2x = 2N-1, 4x = 4N-3, 8x = 8N-7
+- **Target FPS mode:** `floor((N-1) / source_fps * target_fps) + 1` frames. Automatically oversamples to the nearest power-of-2 above the ratio, then selects frames at exact target timestamps. Downsampling (target < source) also works — frames are selected from the input with no model calls.
 
 ## Acknowledgments
 
-This project wraps the official [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VFI) implementation by the [KAIST VIC Lab](https://github.com/KAIST-VICLab), the official [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI) implementation by MCG-NJU, the official [SGM-VFI](https://github.com/MCG-NJU/SGM-VFI) implementation by MCG-NJU, and the [GIMM-VFI](https://github.com/GSeanCDAT/GIMM-VFI) implementation by S-Lab (NTU). GIMM-VFI architecture files in `gimm_vfi_arch/` are adapted from [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/ComfyUI-GIMM-VFI) with safetensors checkpoints from [Kijai/GIMM-VFI_safetensors](https://huggingface.co/Kijai/GIMM-VFI_safetensors). Architecture files in `bim_vfi_arch/`, `ema_vfi_arch/`, `sgm_vfi_arch/`, and `gimm_vfi_arch/` are vendored from their respective repositories with minimal modifications (relative imports, device-awareness fixes, inference-only paths).
+| Model | Authors | Venue | Links |
+|-------|---------|-------|-------|
+| **BIM-VFI** | Seo, Oh, Kim (KAIST VIC Lab) | CVPR 2025 | [Paper](https://arxiv.org/abs/2412.11365) · [Code](https://github.com/KAIST-VICLab/BiM-VFI) · [Project](https://kaist-viclab.github.io/BiM-VFI_site/) |
+| **EMA-VFI** | Zhang et al. (MCG-NJU) | CVPR 2023 | [Paper](https://arxiv.org/abs/2303.00440) · [Code](https://github.com/MCG-NJU/EMA-VFI) |
+| **SGM-VFI** | Zhang et al. (MCG-NJU) | CVPR 2024 | [Paper](https://arxiv.org/abs/2404.06913) · [Code](https://github.com/MCG-NJU/SGM-VFI) |
+| **GIMM-VFI** | Guo, Li, Loy (S-Lab NTU) | NeurIPS 2024 | [Paper](https://arxiv.org/abs/2407.08680) · [Code](https://github.com/GSeanCDAT/GIMM-VFI) |
 
-**BiM-VFI:**
-> Wonyong Seo, Jihyong Oh, and Munchurl Kim.
-> "BiM-VFI: Bidirectional Motion Field-Guided Frame Interpolation for Video with Non-uniform Motions."
-> *IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)*, 2025.
-> [[arXiv]](https://arxiv.org/abs/2412.11365) [[Project Page]](https://kaist-viclab.github.io/BiM-VFI_site/) [[GitHub]](https://github.com/KAIST-VICLab/BiM-VFI)
+GIMM-VFI adaptation from [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/ComfyUI-GIMM-VFI) with checkpoints from [Kijai/GIMM-VFI_safetensors](https://huggingface.co/Kijai/GIMM-VFI_safetensors). Architecture files in `bim_vfi_arch/`, `ema_vfi_arch/`, `sgm_vfi_arch/`, and `gimm_vfi_arch/` are vendored from their respective repositories with minimal modifications.
+
+<details>
+<summary>BibTeX citations</summary>
 
 ```bibtex
 @inproceedings{seo2025bimvfi,
@@ -225,45 +232,21 @@ This project wraps the official [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VF
   booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
   year={2025}
 }
-```
 
-**EMA-VFI:**
-> Guozhen Zhang, Yuhan Zhu, Haonan Wang, Youxin Chen, Gangshan Wu, and Limin Wang.
-> "Extracting Motion and Appearance via Inter-Frame Attention for Efficient Video Frame Interpolation."
-> *IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)*, 2023.
-> [[arXiv]](https://arxiv.org/abs/2303.00440) [[GitHub]](https://github.com/MCG-NJU/EMA-VFI)
-
-```bibtex
 @inproceedings{zhang2023emavfi,
   title={Extracting Motion and Appearance via Inter-Frame Attention for Efficient Video Frame Interpolation},
   author={Zhang, Guozhen and Zhu, Yuhan and Wang, Haonan and Chen, Youxin and Wu, Gangshan and Wang, Limin},
   booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
   year={2023}
 }
-```
 
-**SGM-VFI:**
-> Guozhen Zhang, Yuhan Zhu, Evan Zheran Liu, Haonan Wang, Mingzhen Sun, Gangshan Wu, and Limin Wang.
-> "Sparse Global Matching for Video Frame Interpolation with Large Motion."
-> *IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)*, 2024.
-> [[arXiv]](https://arxiv.org/abs/2404.06913) [[GitHub]](https://github.com/MCG-NJU/SGM-VFI)
-
-```bibtex
 @inproceedings{zhang2024sgmvfi,
   title={Sparse Global Matching for Video Frame Interpolation with Large Motion},
   author={Zhang, Guozhen and Zhu, Yuhan and Liu, Evan Zheran and Wang, Haonan and Sun, Mingzhen and Wu, Gangshan and Wang, Limin},
   booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
   year={2024}
 }
-```
 
-**GIMM-VFI:**
-> Zujin Guo, Wei Li, and Chen Change Loy.
-> "Generalizable Implicit Motion Modeling for Video Frame Interpolation."
-> *Advances in Neural Information Processing Systems (NeurIPS)*, 2024.
-> [[arXiv]](https://arxiv.org/abs/2407.08680) [[GitHub]](https://github.com/GSeanCDAT/GIMM-VFI)
-
-```bibtex
 @inproceedings{guo2024gimmvfi,
   title={Generalizable Implicit Motion Modeling for Video Frame Interpolation},
   author={Guo, Zujin and Li, Wei and Loy, Chen Change},
@@ -272,12 +255,12 @@ This project wraps the official [BiM-VFI](https://github.com/KAIST-VICLab/BiM-VF
 }
 ```
 
+</details>
+
 ## License
 
-The BiM-VFI model weights and architecture code are provided by KAIST VIC Lab for **research and education purposes only**. Commercial use requires permission from the principal investigator (Prof. Munchurl Kim, mkimee@kaist.ac.kr). See the [original repository](https://github.com/KAIST-VICLab/BiM-VFI) for details.
+**BIM-VFI:** Research and education only. Commercial use requires permission from Prof. Munchurl Kim (mkimee@kaist.ac.kr). See the [original repository](https://github.com/KAIST-VICLab/BiM-VFI).
 
-The EMA-VFI model weights and architecture code are released under the [Apache 2.0 License](https://github.com/MCG-NJU/EMA-VFI/blob/main/LICENSE). See the [original repository](https://github.com/MCG-NJU/EMA-VFI) for details.
+**EMA-VFI, SGM-VFI, GIMM-VFI:** [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0). GIMM-VFI ComfyUI adaptation based on [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/ComfyUI-GIMM-VFI).
 
-The SGM-VFI model weights and architecture code are released under the [Apache 2.0 License](https://github.com/MCG-NJU/SGM-VFI/blob/main/LICENSE). See the [original repository](https://github.com/MCG-NJU/SGM-VFI) for details.
-
-The GIMM-VFI model weights and architecture code are released under the [Apache 2.0 License](https://github.com/GSeanCDAT/GIMM-VFI/blob/main/LICENSE). See the [original repository](https://github.com/GSeanCDAT/GIMM-VFI) for details. ComfyUI adaptation based on [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/ComfyUI-GIMM-VFI).
+**This wrapper code:** [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0)
