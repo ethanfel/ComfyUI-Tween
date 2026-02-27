@@ -3,6 +3,7 @@ from .nodes import (
     LoadEMAVFIModel, EMAVFIInterpolate, EMAVFISegmentInterpolate,
     LoadSGMVFIModel, SGMVFIInterpolate, SGMVFISegmentInterpolate,
     LoadGIMMVFIModel, GIMMVFIInterpolate, GIMMVFISegmentInterpolate,
+    VFIOptimizer,
 )
 
 NODE_CLASS_MAPPINGS = {
@@ -19,6 +20,7 @@ NODE_CLASS_MAPPINGS = {
     "LoadGIMMVFIModel": LoadGIMMVFIModel,
     "GIMMVFIInterpolate": GIMMVFIInterpolate,
     "GIMMVFISegmentInterpolate": GIMMVFISegmentInterpolate,
+    "VFIOptimizer": VFIOptimizer,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -35,4 +37,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadGIMMVFIModel": "Load GIMM-VFI Model",
     "GIMMVFIInterpolate": "GIMM-VFI Interpolate",
     "GIMMVFISegmentInterpolate": "GIMM-VFI Segment Interpolate",
+    "VFIOptimizer": "VFI Optimizer",
 }
