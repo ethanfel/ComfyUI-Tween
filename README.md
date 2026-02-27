@@ -161,7 +161,7 @@ pip install -r requirements.txt
 
 `cupy` is needed for optical flow warping in BIM-VFI, SGM-VFI, and GIMM-VFI. EMA-VFI does **not** need cupy.
 
-The node will attempt to auto-install the correct cupy package on first load. If that fails, you'll see a clear error message in ComfyUI with install instructions. To install manually:
+If cupy is missing, the Load node will show an error in ComfyUI with your CUDA version and the exact install command. To install:
 
 1. Find your CUDA version:
    ```bash
