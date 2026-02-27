@@ -157,24 +157,29 @@ git clone https://github.com/Ethanfel/ComfyUI-Tween.git
 pip install -r requirements.txt
 ```
 
-### cupy
+### cupy (required for BIM-VFI, SGM-VFI, GIMM-VFI)
 
-`cupy` is required for BIM-VFI, SGM-VFI, and GIMM-VFI (optical flow warping). It will be auto-installed on first load based on your PyTorch CUDA version. If auto-install fails, install manually:
+`cupy` is needed for optical flow warping in BIM-VFI, SGM-VFI, and GIMM-VFI. EMA-VFI does **not** need cupy.
 
-```bash
-pip install cupy-cuda12x  # replace 12 with your CUDA major version (11 or 12)
-```
+The node will attempt to auto-install the correct cupy package on first load. If that fails, you'll see a clear error message in ComfyUI with install instructions. To install manually:
 
-### Requirements
+1. Find your CUDA version:
+   ```bash
+   python -c "import torch; print(torch.version.cuda)"
+   ```
 
-- PyTorch with CUDA
-- `cupy` (matching your CUDA version — for BIM-VFI, SGM-VFI, and GIMM-VFI)
-- `timm` (for EMA-VFI and SGM-VFI)
-- `gdown` (for BIM-VFI/EMA-VFI/SGM-VFI model auto-download)
-- `omegaconf`, `easydict`, `yacs`, `einops` (for GIMM-VFI)
-- `huggingface_hub` (for GIMM-VFI model auto-download)
+2. Install the matching cupy package:
+   ```bash
+   # CUDA 12.x
+   pip install cupy-cuda12x
 
-All dependencies except `cupy` are listed in `pyproject.toml` and installed automatically by ComfyUI Manager or pip.
+   # CUDA 11.x
+   pip install cupy-cuda11x
+   ```
+
+### Other dependencies
+
+All other dependencies (`gdown`, `timm`, `omegaconf`, `easydict`, `yacs`, `einops`, `huggingface_hub`) are listed in `pyproject.toml` and `requirements.txt`, and are installed automatically by ComfyUI Manager or pip.
 
 ## VRAM Guide
 
