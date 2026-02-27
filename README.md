@@ -159,23 +159,41 @@ pip install -r requirements.txt
 
 ### cupy (required for BIM-VFI, SGM-VFI, GIMM-VFI)
 
-`cupy` is needed for optical flow warping in BIM-VFI, SGM-VFI, and GIMM-VFI. EMA-VFI does **not** need cupy.
+[cupy](https://cupy.dev/) is a GPU-accelerated array library used for optical flow warping. It is required by **BIM-VFI**, **SGM-VFI**, and **GIMM-VFI**. EMA-VFI does **not** need cupy and works without it.
 
-If cupy is missing, the Load node will show an error in ComfyUI with your CUDA version and the exact install command. To install:
+cupy must match your PyTorch CUDA version. If it is missing or mismatched, the Load node will show an error in ComfyUI with your CUDA version and the exact install command.
 
-1. Find your CUDA version:
-   ```bash
-   python -c "import torch; print(torch.version.cuda)"
-   ```
+#### How to install cupy
 
-2. Install the matching cupy package:
-   ```bash
-   # CUDA 12.x
-   pip install cupy-cuda12x
+**Step 1 — Find your CUDA version:**
 
-   # CUDA 11.x
-   pip install cupy-cuda11x
-   ```
+```bash
+python -c "import torch; print(torch.version.cuda)"
+```
+
+This prints something like `12.4` or `11.8`.
+
+**Step 2 — Install the matching cupy package:**
+
+| CUDA version | Install command |
+|---|---|
+| 12.x | `pip install cupy-cuda12x` |
+| 11.x | `pip install cupy-cuda11x` |
+
+> **Note:** Make sure to run pip in the same Python environment as ComfyUI. If you use a venv or conda, activate it first.
+
+#### Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `ModuleNotFoundError: No module named 'cupy'` | Install cupy using the steps above |
+| `cupy` installed but `ImportError` at runtime | CUDA version mismatch — uninstall with `pip uninstall cupy-cuda12x` and reinstall the correct version |
+| Install hangs or takes very long | cupy wheels are large (~800MB). Use a fast connection and be patient |
+| Docker / no build tools | Use the prebuilt wheel: `pip install cupy-cuda12x` (not `cupy` which compiles from source) |
+
+#### Can I skip cupy?
+
+Yes — just use **EMA-VFI**, which does not require cupy. It is the fastest model and uses the least VRAM. The other three models (BIM-VFI, SGM-VFI, GIMM-VFI) will not load without cupy.
 
 ### Other dependencies
 
