@@ -747,14 +747,14 @@ class VFIOptimizer:
             },
         }
 
-    RETURN_TYPES = ("VFI_SETTINGS",)
-    RETURN_NAMES = ("settings",)
+    RETURN_TYPES = ("VFI_SETTINGS", "IMAGE")
+    RETURN_NAMES = ("settings", "images")
     FUNCTION = "optimize"
     CATEGORY = "video/Tween"
 
     @staticmethod
-    def _conservative_defaults():
-        """Return safe fallback settings."""
+    def _conservative_defaults(images):
+        """Return safe fallback settings with image passthrough."""
         return ({
             "batch_size": 1,
             "chunk_size": 0,
@@ -762,12 +762,12 @@ class VFIOptimizer:
             "all_on_gpu": False,
             "clear_cache_after_n_frames": 5,
             "_info": {"source": "conservative_defaults"},
-        },)
+        }, images)
 
     def optimize(self, images, model, min_free_vram_gb, force_batch_size=0):
         if images.shape[0] < 2 or not torch.cuda.is_available():
             logger.info("VFI Optimizer: <2 frames or no CUDA, returning conservative defaults")
-            return self._conservative_defaults()
+            return self._conservative_defaults(images)
 
         device = torch.device("cuda")
 
@@ -805,7 +805,7 @@ class VFIOptimizer:
                 model.to("cpu")
             except Exception:
                 pass
-            return self._conservative_defaults()
+            return self._conservative_defaults(images)
         finally:
             _clear_model_cache(model)
             model.to("cpu")
@@ -881,7 +881,7 @@ class VFIOptimizer:
             f"calibration={elapsed*1000:.0f}ms, res={W}x{H}"
         )
 
-        return (settings,)
+        return (settings, images)
 
 
 # ---------------------------------------------------------------------------
