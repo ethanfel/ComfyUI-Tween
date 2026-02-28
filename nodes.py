@@ -815,7 +815,7 @@ class VFIOptimizer:
         per_pair_vram_mb = max(per_pair_vram_bytes / (1024 ** 2), 1.0)
 
         # --- Compute settings ---
-        total_vram_mb = torch.cuda.get_device_properties(device).total_mem / (1024 ** 2)
+        total_vram_mb = torch.cuda.get_device_properties(device).total_memory / (1024 ** 2)
         min_free_mb = min_free_vram_gb * 1024
         available_mb = total_vram_mb - min_free_mb - model_vram_mb
 
