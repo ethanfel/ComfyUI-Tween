@@ -825,11 +825,11 @@ class VFIOptimizer:
         else:
             batch_size = max(1, min(int(available_mb * 0.85 / per_pair_vram_mb), 64))
 
-        # all_on_gpu: estimate output frames for 2x on 2 input frames → 3 output
-        # More generally, estimate if a modest output (e.g. 100 2x-frames) fits
+        # all_on_gpu: estimate output frames for 2x from actual input count
         H, W = images.shape[1], images.shape[2]
+        N = images.shape[0]
         frame_mb = H * W * 3 * 4 / (1024 ** 2)  # float32 [C,H,W]
-        estimated_output_frames = 199  # 100 input → 199 output at 2x
+        estimated_output_frames = 2 * N - 1  # 2x is most common multiplier
         output_vram_mb = estimated_output_frames * frame_mb
         vram_after_model = total_vram_mb - min_free_mb - model_vram_mb
         all_on_gpu = output_vram_mb < vram_after_model * 0.5
@@ -844,8 +844,7 @@ class VFIOptimizer:
         # chunk_size: based on system RAM
         system_ram_gb = _get_system_ram_gb()
         system_ram_mb = system_ram_gb * 1024
-        # Estimate if full 2x output fits in 60% of RAM
-        # Conservative: assume 100 input frames worth of output
+        # Check if full 2x output fits in 60% of RAM
         if output_vram_mb < system_ram_mb * 0.6:
             chunk_size = 0  # fits in RAM, no chunking needed
         else:
