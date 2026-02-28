@@ -747,22 +747,22 @@ class VFIOptimizer:
             },
         }
 
-    RETURN_TYPES = ("VFI_SETTINGS", "IMAGE")
-    RETURN_NAMES = ("settings", "images")
+    RETURN_TYPES = ("IMAGE", "VFI_SETTINGS")
+    RETURN_NAMES = ("images", "settings")
     FUNCTION = "optimize"
     CATEGORY = "video/Tween"
 
     @staticmethod
     def _conservative_defaults(images):
         """Return safe fallback settings with image passthrough."""
-        return ({
+        return (images, {
             "batch_size": 1,
             "chunk_size": 0,
             "keep_device": True,
             "all_on_gpu": False,
             "clear_cache_after_n_frames": 5,
             "_info": {"source": "conservative_defaults"},
-        }, images)
+        })
 
     def optimize(self, images, model, min_free_vram_gb, force_batch_size=0):
         if images.shape[0] < 2 or not torch.cuda.is_available():
@@ -881,7 +881,7 @@ class VFIOptimizer:
             f"calibration={elapsed*1000:.0f}ms, res={W}x{H}"
         )
 
-        return (settings, images)
+        return (images, settings)
 
 
 # ---------------------------------------------------------------------------
