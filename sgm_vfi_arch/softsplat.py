@@ -258,8 +258,8 @@ def _pytorch_softsplat(tenIn, tenFlow):
 
     nw_x = flt_x.floor().long()
     nw_y = flt_y.floor().long()
-    frac_x = flt_x - nw_x.float()
-    frac_y = flt_y - nw_y.float()
+    frac_x = flt_x - nw_x.to(flt_x.dtype)
+    frac_y = flt_y - nw_y.to(flt_y.dtype)
 
     w_nw = (1.0 - frac_x) * (1.0 - frac_y) * valid
     w_ne = frac_x * (1.0 - frac_y) * valid
