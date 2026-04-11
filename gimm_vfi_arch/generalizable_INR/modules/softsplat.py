@@ -268,11 +268,14 @@ _cuda_launch_cache = {}
 @torch.compiler.disable()
 def cuda_launch(strKey: str):
     if strKey not in _cuda_launch_cache:
-        try:
-            os.environ.setdefault("CUDA_HOME", cupy.cuda.get_cuda_path())
-        except Exception:
-            if "CUDA_HOME" not in os.environ:
-                raise RuntimeError("'CUDA_HOME' not set, unable to find cuda-toolkit installation.")
+        if "CUDA_HOME" not in os.environ:
+            try:
+                cuda_path = cupy.cuda.get_cuda_path()
+            except Exception:
+                cuda_path = None
+            if cuda_path is None:
+                cuda_path = "/usr/local/cuda"
+            os.environ["CUDA_HOME"] = cuda_path
         strKernel = objCudacache[strKey]["strKernel"]
         strFunction = objCudacache[strKey]["strFunction"]
         _cuda_launch_cache[strKey] = cupy.RawModule(

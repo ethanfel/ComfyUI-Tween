@@ -224,7 +224,13 @@ _cuda_launch_cache = {}
 def cuda_launch(strKey:str):
     if strKey not in _cuda_launch_cache:
         if 'CUDA_HOME' not in os.environ:
-            os.environ['CUDA_HOME'] = cupy.cuda.get_cuda_path()
+            try:
+                cuda_path = cupy.cuda.get_cuda_path()
+            except Exception:
+                cuda_path = None
+            if cuda_path is None:
+                cuda_path = '/usr/local/cuda'
+            os.environ['CUDA_HOME'] = cuda_path
         _cuda_launch_cache[strKey] = cupy.RawKernel(
             objCudacache[strKey]['strKernel'],
             objCudacache[strKey]['strFunction'],
