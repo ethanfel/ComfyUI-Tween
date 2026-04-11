@@ -19,26 +19,6 @@ from .gimm_vfi_arch import clear_gimm_caches
 logger = logging.getLogger("Tween")
 
 
-def _check_cupy(model_name):
-    """Raise a clear error if cupy is not installed."""
-    try:
-        import cupy  # noqa: F401
-    except ImportError:
-        try:
-            cuda_ver = torch.version.cuda or "unknown"
-            major = int(cuda_ver.split(".")[0])
-            cupy_pkg = f"cupy-cuda{major}x"
-        except Exception:
-            cuda_ver = "unknown"
-            cupy_pkg = "cupy-cuda12x  # adjust to your CUDA version"
-        raise RuntimeError(
-            f"{model_name} requires cupy but it is not installed.\n\n"
-            f"Your PyTorch CUDA version: {cuda_ver}\n\n"
-            f"Install it with:\n"
-            f"  pip install {cupy_pkg}\n\n"
-            f"If you are unsure of your CUDA version, run:\n"
-            f"  python -c \"import torch; print(torch.version.cuda)\""
-        )
 
 
 def _get_system_ram_gb():
@@ -206,7 +186,6 @@ class LoadBIMVFIModel:
     CATEGORY = "video/BIM-VFI"
 
     def load_model(self, model_path, auto_pyr_level, pyr_level):
-        _check_cupy("BIM-VFI")
         full_path = os.path.join(MODEL_DIR, model_path)
 
         if not os.path.exists(full_path):
@@ -1374,7 +1353,6 @@ class LoadSGMVFIModel:
     CATEGORY = "video/SGM-VFI"
 
     def load_model(self, model_path, tta, num_key_points):
-        _check_cupy("SGM-VFI")
         full_path = os.path.join(SGM_MODEL_DIR, model_path)
 
         if not os.path.exists(full_path):
@@ -1801,7 +1779,6 @@ class LoadGIMMVFIModel:
     CATEGORY = "video/GIMM-VFI"
 
     def load_model(self, model_path, ds_factor):
-        _check_cupy("GIMM-VFI")
         full_path = os.path.join(GIMM_MODEL_DIR, model_path)
 
         # Auto-download main model if missing
