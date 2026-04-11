@@ -292,7 +292,7 @@ def cuda_launch(strKey: str):
 ##########################################################
 
 
-def _pytorch_softsplat(tenIn, tenFlow):
+def _pytorch_softsplat_impl(tenIn, tenFlow):
     """Pure-PyTorch forward warp via bilinear splatting (scatter_add)."""
     B, C, H, W = tenIn.shape
     tenOut = tenIn.new_zeros(B, C, H, W)
@@ -333,6 +333,22 @@ def _pytorch_softsplat(tenIn, tenFlow):
         out_flat.scatter_add_(2, idx.reshape(B, C, -1), weighted.reshape(B, C, -1))
 
     return tenOut
+
+
+_softsplat_fn = None
+
+def _pytorch_softsplat(tenIn, tenFlow):
+    global _softsplat_fn
+    if _softsplat_fn is None:
+        try:
+            _softsplat_fn = torch.compile(_pytorch_softsplat_impl)
+        except Exception:
+            _softsplat_fn = _pytorch_softsplat_impl
+    try:
+        return _softsplat_fn(tenIn, tenFlow)
+    except Exception:
+        _softsplat_fn = _pytorch_softsplat_impl
+        return _softsplat_fn(tenIn, tenFlow)
 
 
 @torch.compiler.disable()

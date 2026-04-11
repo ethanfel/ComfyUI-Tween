@@ -243,7 +243,7 @@ def cuda_launch(strKey:str):
 # end
 
 
-def _pytorch_costvol(tenOne, tenTwo, intKernelSize):
+def _pytorch_costvol_impl(tenOne, tenTwo, intKernelSize):
     """Pure-PyTorch local cost volume via unfold + dot product."""
     B, C, H, W = tenOne.shape
     pad = (intKernelSize - 1) // 2
@@ -263,6 +263,22 @@ def _pytorch_costvol(tenOne, tenTwo, intKernelSize):
     tenOut = tenOut.permute(0, 3, 1, 2).contiguous()
 
     return tenOut
+
+
+_costvol_fn = None
+
+def _pytorch_costvol(tenOne, tenTwo, intKernelSize):
+    global _costvol_fn
+    if _costvol_fn is None:
+        try:
+            _costvol_fn = torch.compile(_pytorch_costvol_impl)
+        except Exception:
+            _costvol_fn = _pytorch_costvol_impl
+    try:
+        return _costvol_fn(tenOne, tenTwo, intKernelSize)
+    except Exception:
+        _costvol_fn = _pytorch_costvol_impl
+        return _costvol_fn(tenOne, tenTwo, intKernelSize)
 
 
 ##########################################################
