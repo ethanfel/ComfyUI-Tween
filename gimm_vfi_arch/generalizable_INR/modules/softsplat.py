@@ -11,7 +11,10 @@
 import collections
 try:
     import cupy
-except ImportError:
+except Exception:
+    # Broad catch: an installed-but-broken cupy (e.g. incompatible NumPy)
+    # raises non-ImportError exceptions at import time. Treat any failure as
+    # "cupy unavailable" and fall back to the pure-PyTorch implementation.
     cupy = None
 import os
 import re

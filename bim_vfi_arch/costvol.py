@@ -15,8 +15,11 @@ def _ensure_cupy():
         try:
             import cupy as _cupy
             cupy = _cupy
-        except ImportError:
-            pass  # cupy unavailable; PyTorch fallback will be used
+        except Exception:
+            # Broad catch: an installed-but-broken cupy (e.g. incompatible
+            # NumPy) raises non-ImportError exceptions at import time. Treat any
+            # failure as "cupy unavailable"; the PyTorch fallback will be used.
+            pass
 
 
 ##########################################################
