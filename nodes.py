@@ -1,6 +1,7 @@
 import math
 import os
 import glob
+from functools import wraps
 import logging
 import re
 import shutil
@@ -26,6 +27,25 @@ from .sgm_vfi_arch import clear_warp_cache as clear_sgm_warp_cache
 from .gimm_vfi_arch import clear_gimm_caches
 
 logger = logging.getLogger("Tween")
+
+
+def _with_elapsed_seconds(label=None):
+    """Append wall-clock node execution time without disturbing existing outputs."""
+    def decorate(method):
+        @wraps(method)
+        def timed(self, *args, **kwargs):
+            started = time.perf_counter()
+            outputs = method(self, *args, **kwargs)
+            elapsed_seconds = time.perf_counter() - started
+            output_label = label or getattr(self, "MODEL_LABEL", self.__class__.__name__)
+            logger.info(
+                "%s: node completed in %.2f seconds", output_label, elapsed_seconds
+            )
+            return (*outputs, round(elapsed_seconds, 3))
+
+        return timed
+
+    return decorate
 
 
 def _get_torch_device():
@@ -356,8 +376,8 @@ class BIMVFIInterpolate:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "IMAGE")
-    RETURN_NAMES = ("images", "oversampled")
+    RETURN_TYPES = ("IMAGE", "IMAGE", "FLOAT")
+    RETURN_NAMES = ("images", "oversampled", "elapsed_seconds")
     FUNCTION = "interpolate"
     CATEGORY = "video/BIM-VFI"
 
@@ -420,6 +440,7 @@ class BIMVFIInterpolate:
             n = 2 * n - 1
         return total
 
+    @_with_elapsed_seconds()
     def interpolate(self, images, model, multiplier, clear_cache_after_n_frames,
                     keep_device, all_on_gpu, batch_size, chunk_size,
                     source_fps=0.0, target_fps=0.0, settings=None, seed=None):
@@ -554,11 +575,12 @@ class BIMVFISegmentInterpolate(BIMVFIInterpolate):
         })
         return base
 
-    RETURN_TYPES = ("IMAGE", "BIM_VFI_MODEL")
-    RETURN_NAMES = ("images", "model")
+    RETURN_TYPES = ("IMAGE", "BIM_VFI_MODEL", "FLOAT")
+    RETURN_NAMES = ("images", "model", "elapsed_seconds")
     FUNCTION = "interpolate"
     CATEGORY = "video/BIM-VFI"
 
+    @_with_elapsed_seconds()
     def interpolate(self, images, model, multiplier, clear_cache_after_n_frames,
                     keep_device, all_on_gpu, batch_size, chunk_size,
                     segment_index, segment_size,
@@ -653,7 +675,7 @@ class BIMVFISegmentInterpolate(BIMVFIInterpolate):
 
         # Standard multiplier mode
         is_continuation = segment_index > 0
-        (result, _) = super().interpolate(
+        (result, _, _) = super().interpolate(
             segment_images, model, multiplier, clear_cache_after_n_frames,
             keep_device, all_on_gpu, batch_size, chunk_size,
             seed=seed,
@@ -1123,8 +1145,8 @@ class EMAVFIInterpolate:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "IMAGE")
-    RETURN_NAMES = ("images", "oversampled")
+    RETURN_TYPES = ("IMAGE", "IMAGE", "FLOAT")
+    RETURN_NAMES = ("images", "oversampled", "elapsed_seconds")
     FUNCTION = "interpolate"
     CATEGORY = "video/EMA-VFI"
 
@@ -1182,6 +1204,7 @@ class EMAVFIInterpolate:
             n = 2 * n - 1
         return total
 
+    @_with_elapsed_seconds("EMA-VFI")
     def interpolate(self, images, model, multiplier, clear_cache_after_n_frames,
                     keep_device, all_on_gpu, batch_size, chunk_size,
                     source_fps=0.0, target_fps=0.0, settings=None):
@@ -1310,11 +1333,12 @@ class EMAVFISegmentInterpolate(EMAVFIInterpolate):
         })
         return base
 
-    RETURN_TYPES = ("IMAGE", "EMA_VFI_MODEL")
-    RETURN_NAMES = ("images", "model")
+    RETURN_TYPES = ("IMAGE", "EMA_VFI_MODEL", "FLOAT")
+    RETURN_NAMES = ("images", "model", "elapsed_seconds")
     FUNCTION = "interpolate"
     CATEGORY = "video/EMA-VFI"
 
+    @_with_elapsed_seconds("EMA-VFI segment")
     def interpolate(self, images, model, multiplier, clear_cache_after_n_frames,
                     keep_device, all_on_gpu, batch_size, chunk_size,
                     segment_index, segment_size,
@@ -1401,7 +1425,7 @@ class EMAVFISegmentInterpolate(EMAVFIInterpolate):
 
         # Standard multiplier mode
         is_continuation = segment_index > 0
-        (result, _) = super().interpolate(
+        (result, _, _) = super().interpolate(
             segment_images, model, multiplier, clear_cache_after_n_frames,
             keep_device, all_on_gpu, batch_size, chunk_size,
         )
@@ -1550,8 +1574,8 @@ class SGMVFIInterpolate:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "IMAGE")
-    RETURN_NAMES = ("images", "oversampled")
+    RETURN_TYPES = ("IMAGE", "IMAGE", "FLOAT")
+    RETURN_NAMES = ("images", "oversampled", "elapsed_seconds")
     FUNCTION = "interpolate"
     CATEGORY = "video/SGM-VFI"
 
@@ -1609,6 +1633,7 @@ class SGMVFIInterpolate:
             n = 2 * n - 1
         return total
 
+    @_with_elapsed_seconds("SGM-VFI")
     def interpolate(self, images, model, multiplier, clear_cache_after_n_frames,
                     keep_device, all_on_gpu, batch_size, chunk_size,
                     source_fps=0.0, target_fps=0.0, settings=None):
@@ -1737,11 +1762,12 @@ class SGMVFISegmentInterpolate(SGMVFIInterpolate):
         })
         return base
 
-    RETURN_TYPES = ("IMAGE", "SGM_VFI_MODEL")
-    RETURN_NAMES = ("images", "model")
+    RETURN_TYPES = ("IMAGE", "SGM_VFI_MODEL", "FLOAT")
+    RETURN_NAMES = ("images", "model", "elapsed_seconds")
     FUNCTION = "interpolate"
     CATEGORY = "video/SGM-VFI"
 
+    @_with_elapsed_seconds("SGM-VFI segment")
     def interpolate(self, images, model, multiplier, clear_cache_after_n_frames,
                     keep_device, all_on_gpu, batch_size, chunk_size,
                     segment_index, segment_size,
@@ -1828,7 +1854,7 @@ class SGMVFISegmentInterpolate(SGMVFIInterpolate):
 
         # Standard multiplier mode
         is_continuation = segment_index > 0
-        (result, _) = super().interpolate(
+        (result, _, _) = super().interpolate(
             segment_images, model, multiplier, clear_cache_after_n_frames,
             keep_device, all_on_gpu, batch_size, chunk_size,
         )
@@ -1984,11 +2010,12 @@ class LDFVFIInterpolate:
     FUNCTION = "interpolate"
     CATEGORY = "video/LDF-VFI"
 
+    @_with_elapsed_seconds("LDF-VFI")
     def interpolate(self, images, model, temporal_factor, sampling_steps,
                     t_shift, t_cond, seed, offload_after,
                     source_fps=0.0, target_fps=0.0):
         if images.shape[0] < 2:
-            return (images, images, 0.0)
+            return (images, images)
         device = _get_torch_device()
         if device.type != "cuda":
             raise RuntimeError(
@@ -2004,7 +2031,7 @@ class LDFVFIInterpolate:
                 selected = _select_target_fps_frames(
                     source, source_fps, target_fps, 1, source.shape[0]
                 ).permute(0, 2, 3, 1).cpu()
-                return (selected, images, 0.0)
+                return (selected, images)
             temporal_factor = math.ceil(ratio)
             if temporal_factor > 16:
                 raise ValueError(
@@ -2027,7 +2054,6 @@ class LDFVFIInterpolate:
         )
         try:
             model.to(device)
-            interpolation_started = time.perf_counter()
             generated = model.interpolate_sequence(
                 source,
                 temporal_factor=temporal_factor,
@@ -2037,7 +2063,6 @@ class LDFVFIInterpolate:
                 seed=seed,
                 progress_callback=update_progress,
             )
-            elapsed_seconds = time.perf_counter() - interpolation_started
         finally:
             generation_failed = sys.exc_info()[0] is not None
             cleanup_error = None
@@ -2063,11 +2088,8 @@ class LDFVFIInterpolate:
                 temporal_factor, source.shape[0],
             )
         result = generated.permute(0, 2, 3, 1).cpu()
-        logger.info(
-            "LDF-VFI: done, %s output frames in %.2f seconds",
-            result.shape[0], elapsed_seconds,
-        )
-        return (result, generated_sequence, round(elapsed_seconds, 3))
+        logger.info("LDF-VFI: done, %s output frames", result.shape[0])
+        return (result, generated_sequence)
 
 
 # ---------------------------------------------------------------------------
@@ -2145,6 +2167,8 @@ class LoadSPEEDVFIModel:
 class SPEEDVFIInterpolate(BIMVFIInterpolate):
     MODEL_LABEL = "SPEED"
     CATEGORY = "video/SPEED"
+    RETURN_TYPES = ("IMAGE", "IMAGE", "FLOAT")
+    RETURN_NAMES = ("images", "oversampled", "elapsed_seconds")
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -2172,10 +2196,10 @@ class SPEEDVFIInterpolate(BIMVFIInterpolate):
         )
         return inputs
 
-
 class SPEEDVFISegmentInterpolate(BIMVFISegmentInterpolate):
     MODEL_LABEL = "SPEED"
-    RETURN_TYPES = ("IMAGE", "SPEED_VFI_MODEL")
+    RETURN_TYPES = ("IMAGE", "SPEED_VFI_MODEL", "FLOAT")
+    RETURN_NAMES = ("images", "model", "elapsed_seconds")
     CATEGORY = "video/SPEED"
 
     @classmethod
@@ -2347,8 +2371,8 @@ class GIMMVFIInterpolate:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "IMAGE")
-    RETURN_NAMES = ("images", "oversampled")
+    RETURN_TYPES = ("IMAGE", "IMAGE", "FLOAT")
+    RETURN_NAMES = ("images", "oversampled", "elapsed_seconds")
     FUNCTION = "interpolate"
     CATEGORY = "video/GIMM-VFI"
 
@@ -2447,6 +2471,7 @@ class GIMMVFIInterpolate:
             n = 2 * n - 1
         return total
 
+    @_with_elapsed_seconds("GIMM-VFI")
     def interpolate(self, images, model, multiplier, single_pass,
                     clear_cache_after_n_frames, keep_device, all_on_gpu,
                     batch_size, chunk_size,
@@ -2594,11 +2619,12 @@ class GIMMVFISegmentInterpolate(GIMMVFIInterpolate):
         })
         return base
 
-    RETURN_TYPES = ("IMAGE", "GIMM_VFI_MODEL")
-    RETURN_NAMES = ("images", "model")
+    RETURN_TYPES = ("IMAGE", "GIMM_VFI_MODEL", "FLOAT")
+    RETURN_NAMES = ("images", "model", "elapsed_seconds")
     FUNCTION = "interpolate"
     CATEGORY = "video/GIMM-VFI"
 
+    @_with_elapsed_seconds("GIMM-VFI segment")
     def interpolate(self, images, model, multiplier, single_pass,
                     clear_cache_after_n_frames, keep_device, all_on_gpu,
                     batch_size, chunk_size, segment_index, segment_size,
@@ -2695,7 +2721,7 @@ class GIMMVFISegmentInterpolate(GIMMVFIInterpolate):
 
         # Standard multiplier mode
         is_continuation = segment_index > 0
-        (result, _) = super().interpolate(
+        (result, _, _) = super().interpolate(
             segment_images, model, multiplier, single_pass,
             clear_cache_after_n_frames, keep_device, all_on_gpu,
             batch_size, chunk_size,
