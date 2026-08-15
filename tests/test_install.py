@@ -1,19 +1,26 @@
-import os
-import subprocess
-import sys
-
-import install as tween_install
+from pathlib import Path
+import tomllib
 
 
-def test_installer_never_installs_optional_cupy(monkeypatch):
-    calls = []
-    monkeypatch.setattr(subprocess, "check_call", calls.append)
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
-    tween_install.install()
 
-    requirements_path = os.path.join(
-        os.path.dirname(tween_install.__file__), "requirements.txt"
-    )
-    assert calls == [[
-        sys.executable, "-m", "pip", "install", "-r", requirements_path
-    ]]
+def _requirements():
+    return [
+        line.strip()
+        for line in (REPO_ROOT / "requirements.txt").read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+
+def test_comfy_manager_has_no_redundant_install_script():
+    assert not (REPO_ROOT / "install.py").exists()
+
+
+def test_declared_dependencies_stay_aligned_and_exclude_optional_cupy():
+    with (REPO_ROOT / "pyproject.toml").open("rb") as file:
+        project_dependencies = tomllib.load(file)["project"]["dependencies"]
+
+    requirements = _requirements()
+    assert requirements == project_dependencies
+    assert not any("cupy" in dependency.lower() for dependency in requirements)

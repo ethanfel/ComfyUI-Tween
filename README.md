@@ -21,7 +21,7 @@ git clone https://github.com/Ethanfel/ComfyUI-Tween.git
 pip install -r requirements.txt
 ```
 
-Dependencies are declared in `pyproject.toml` and `requirements.txt` and are installed automatically by ComfyUI Manager or pip. LDF-VFI requires PyTorch 2.5+ plus a current `diffusers`/`accelerate` stack.
+Dependencies are declared in `pyproject.toml` and `requirements.txt` and are installed automatically by ComfyUI Manager or pip. There is intentionally no custom `install.py`, avoiding a second redundant dependency-install pass after Manager processes `requirements.txt`. LDF-VFI requires PyTorch 2.5+ plus a current `diffusers`/`accelerate` stack.
 
 ### Demo workflow
 
