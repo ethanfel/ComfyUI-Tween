@@ -33,7 +33,7 @@ Import [`example_workflows/tween_speed_ldf_model_lab.json`](example_workflows/tw
 
 ### cupy (accelerates BIM-VFI, SGM-VFI, and GIMM-VFI)
 
-[cupy](https://cupy.dev/) provides GPU-accelerated optical flow warping. **EMA-VFI, SPEED, and LDF-VFI do not use it.**
+[cupy](https://cupy.dev/) provides GPU-accelerated optical flow warping. It is deliberately **not installed automatically**, because replacing or mixing CUDA-specific cupy wheels can disrupt other ComfyUI nodes. BIM-VFI, SGM-VFI, and GIMM-VFI work without it through their PyTorch fallback. **EMA-VFI, SPEED, and LDF-VFI do not use it.**
 
 1. Find your CUDA version:
    ```bash
@@ -44,10 +44,11 @@ Import [`example_workflows/tween_speed_ldf_model_lab.json`](example_workflows/tw
 
    | CUDA | Command |
    |------|---------|
+   | 13.x | `pip install cupy-cuda13x` |
    | 12.x | `pip install cupy-cuda12x` |
    | 11.x | `pip install cupy-cuda11x` |
 
-> Make sure to run pip in the same Python environment as ComfyUI. If cupy is missing, the Load node shows an error with your CUDA version and the exact install command.
+> Make sure to run pip in the same Python environment as ComfyUI, and uninstall any different cupy wheel variant first. If cupy is absent or incompatible, Tween safely uses its PyTorch fallback.
 
 <details>
 <summary>cupy troubleshooting</summary>
@@ -56,8 +57,8 @@ Import [`example_workflows/tween_speed_ldf_model_lab.json`](example_workflows/tw
 |---------|----------|
 | `ModuleNotFoundError: No module named 'cupy'` | Install cupy using the steps above |
 | `cupy` installed but `ImportError` at runtime | CUDA version mismatch — uninstall and reinstall the correct version |
-| Install hangs or takes very long | cupy wheels are ~800 MB, be patient |
-| Docker / no build tools | Use the prebuilt wheel: `pip install cupy-cuda12x` (not bare `cupy` which compiles from source) |
+| Install hangs or takes very long | Confirm pip selected a prebuilt wheel for your Python and CUDA versions |
+| Docker / no build tools | Use the matching prebuilt `cupy-cudaXXx` wheel, not bare `cupy` which compiles from source |
 
 </details>
 
