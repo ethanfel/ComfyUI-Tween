@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-tween"
-description = "Video frame interpolation nodes for ComfyUI using BIM-VFI, EMA-VFI, SGM-VFI, and GIMM-VFI. Designed for long videos with thousands of frames."
-version = "1.1.0"
+description = "Video frame interpolation nodes for ComfyUI using BIM-VFI, EMA-VFI, SGM-VFI, GIMM-VFI, SPEED, and LDF-VFI."
+version = "1.2.0"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 dependencies = [
@@ -12,6 +12,9 @@ dependencies = [
     "easydict",
     "einops",
     "huggingface_hub",
+    "diffusers>=0.33.1,<0.40",
+    "accelerate>=1.5,<2",
+    "safetensors",
 ]
 
 [project.urls]

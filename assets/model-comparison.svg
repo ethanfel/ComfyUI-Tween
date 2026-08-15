@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" width="720" height="320">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 475" width="720" height="475">
   <defs>
     <linearGradient id="gQ" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#7aa2f7"/><stop offset="100%" stop-color="#7dcfff"/>
@@ -12,13 +12,13 @@
   </defs>
 
   <!-- Background -->
-  <rect width="720" height="320" rx="16" fill="#0d1117"/>
+  <rect width="720" height="475" rx="16" fill="#0d1117"/>
 
   <!-- ═══ BIM-VFI (top-left) ═══ -->
   <rect x="10" y="10" width="340" height="145" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
   <rect x="11" y="22" width="3" height="121" fill="#3fb950"/>
   <text x="30" y="38" fill="#e6edf3" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="15" font-weight="600">BIM-VFI</text>
-  <text x="30" y="56" fill="#3fb950" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="11">&#9733; Recommended &#183; Best quality &#183; CVPR 2025</text>
+  <text x="30" y="56" fill="#3fb950" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="11">Strong pairwise quality &#183; CVPR 2025</text>
   <line x1="30" y1="64" x2="330" y2="64" stroke="#30363d" stroke-width="0.5"/>
   <text x="30" y="82" fill="#7aa2f7" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="11">Quality</text>
   <rect x="88" y="72" width="244" height="11" rx="3" fill="#21262d"/>
@@ -81,4 +81,38 @@
   <rect x="448" y="263" width="244" height="11" rx="3" fill="#21262d"/>
   <rect x="448" y="263" width="146" height="11" rx="3" fill="url(#gV)" opacity="0.85"/>
   <text x="632" y="298" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="10">Apache 2.0</text>
+
+  <!-- ═══ SPEED (third-row left) ═══ -->
+  <rect x="10" y="320" width="340" height="145" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <rect x="11" y="332" width="3" height="121" fill="#f2cc60"/>
+  <text x="30" y="348" fill="#e6edf3" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="15" font-weight="600">SPEED</text>
+  <text x="30" y="366" fill="#f2cc60" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="11">Modern pairwise default &#183; ACM MM 2026</text>
+  <line x1="30" y1="374" x2="330" y2="374" stroke="#30363d" stroke-width="0.5"/>
+  <text x="30" y="392" fill="#7aa2f7" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="11">Quality</text>
+  <rect x="88" y="382" width="244" height="11" rx="3" fill="#21262d"/>
+  <rect x="88" y="382" width="220" height="11" rx="3" fill="url(#gQ)" opacity="0.85"/>
+  <text x="30" y="410" fill="#9ece6a" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="11">Speed</text>
+  <rect x="88" y="400" width="244" height="11" rx="3" fill="#21262d"/>
+  <rect x="88" y="400" width="190" height="11" rx="3" fill="url(#gS)" opacity="0.85"/>
+  <text x="30" y="428" fill="#bb9af7" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="11">VRAM</text>
+  <rect x="88" y="418" width="244" height="11" rx="3" fill="#21262d"/>
+  <rect x="88" y="418" width="175" height="11" rx="3" fill="url(#gV)" opacity="0.85"/>
+  <text x="253" y="453" fill="#f0883e" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="10">Check upstream terms</text>
+
+  <!-- ═══ LDF-VFI (third-row right) ═══ -->
+  <rect x="370" y="320" width="340" height="145" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <rect x="371" y="332" width="3" height="121" fill="#ff7b72"/>
+  <text x="390" y="348" fill="#e6edf3" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="15" font-weight="600">LDF-VFI</text>
+  <text x="390" y="366" fill="#ff7b72" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="11">Long-sequence coherence &#183; CVPR 2026</text>
+  <line x1="390" y1="374" x2="690" y2="374" stroke="#30363d" stroke-width="0.5"/>
+  <text x="390" y="392" fill="#7aa2f7" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="11">Quality</text>
+  <rect x="448" y="382" width="244" height="11" rx="3" fill="#21262d"/>
+  <rect x="448" y="382" width="230" height="11" rx="3" fill="url(#gQ)" opacity="0.85"/>
+  <text x="390" y="410" fill="#9ece6a" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="11">Speed</text>
+  <rect x="448" y="400" width="244" height="11" rx="3" fill="#21262d"/>
+  <rect x="448" y="400" width="48" height="11" rx="3" fill="url(#gS)" opacity="0.85"/>
+  <text x="390" y="428" fill="#bb9af7" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="11">VRAM</text>
+  <rect x="448" y="418" width="244" height="11" rx="3" fill="#21262d"/>
+  <rect x="448" y="418" width="40" height="11" rx="3" fill="url(#gV)" opacity="0.85"/>
+  <text x="632" y="453" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="10">Apache 2.0</text>
 </svg>

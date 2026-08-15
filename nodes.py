@@ -2,21 +2,92 @@ import math
 import os
 import glob
 import logging
+import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import torch
 import folder_paths
 from comfy.utils import ProgressBar
+try:
+    import comfy.model_management as model_management
+except ImportError:  # Allows lightweight tests outside a full ComfyUI install.
+    model_management = None
 
 from .inference import BiMVFIModel, EMAVFIModel, SGMVFIModel, GIMMVFIModel
+from .speed_backend import SpeedVFIModel
+from .ldf_backend import LDFVFIModel
+from .external_sources import ensure_upstream_source
 from .bim_vfi_arch import clear_backwarp_cache
 from .ema_vfi_arch import clear_warp_cache as clear_ema_warp_cache
 from .sgm_vfi_arch import clear_warp_cache as clear_sgm_warp_cache
 from .gimm_vfi_arch import clear_gimm_caches
 
 logger = logging.getLogger("Tween")
+
+
+def _get_torch_device():
+    """Honor ComfyUI's selected device instead of assuming the default CUDA GPU."""
+    if model_management is not None:
+        return torch.device(model_management.get_torch_device())
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _soft_empty_cache():
+    if model_management is not None:
+        model_management.soft_empty_cache()
+    elif torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
+def _throw_if_interrupted():
+    if model_management is not None:
+        model_management.throw_exception_if_processing_interrupted()
+
+
+def _target_fps_enabled(source_fps, target_fps):
+    if target_fps > 0 and source_fps <= 0:
+        raise ValueError("source_fps must be greater than 0 when target_fps is enabled")
+    return target_fps > 0 and source_fps > 0
+
+
+def _interpolate_batch_with_offload(model, frames0, frames1, device, keep_device):
+    """Run one pair batch and reliably return an optionally offloaded model to CPU."""
+    if keep_device:
+        return model.interpolate_batch(frames0, frames1, time_step=0.5)
+
+    try:
+        model.to(device)
+        return model.interpolate_batch(frames0, frames1, time_step=0.5)
+    finally:
+        inference_failed = sys.exc_info()[0] is not None
+        try:
+            model.to("cpu")
+        except Exception:
+            # Preserve an inference exception if one is already active.
+            if not inference_failed:
+                raise
+            logger.exception("Failed to offload VFI model after an inference error")
+
+
+def _interpolate_multi_with_offload(model, frame0, frame1, num_intermediates,
+                                    device, keep_device):
+    if keep_device:
+        return model.interpolate_multi(frame0, frame1, num_intermediates)
+
+    try:
+        model.to(device)
+        return model.interpolate_multi(frame0, frame1, num_intermediates)
+    finally:
+        inference_failed = sys.exc_info()[0] is not None
+        try:
+            model.to("cpu")
+        except Exception:
+            if not inference_failed:
+                raise
+            logger.exception("Failed to offload VFI model after an inference error")
 
 
 
@@ -62,8 +133,11 @@ def _clear_model_cache(model):
         clear_sgm_warp_cache()
     elif isinstance(model, GIMMVFIModel):
         clear_gimm_caches()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+    elif isinstance(model, SpeedVFIModel):
+        model.clear_cache()
+    elif isinstance(model, LDFVFIModel):
+        model.clear_cache()
+    _soft_empty_cache()
 
 
 def _compute_target_fps_params(source_fps, target_fps):
@@ -77,6 +151,12 @@ def _compute_target_fps_params(source_fps, target_fps):
         return 0, 1  # no interpolation needed (downsampling or same fps)
     num_passes = math.ceil(math.log2(ratio))
     mult = 2 ** num_passes
+    if mult > 8:
+        raise ValueError(
+            f"Pairwise Tween nodes support target-FPS interpolation up to 8x; "
+            f"{source_fps:g} -> {target_fps:g} FPS requires {mult}x. "
+            "Use LDF-VFI for ratios up to 16x or interpolate in multiple stages."
+        )
     return num_passes, mult
 
 
@@ -84,7 +164,7 @@ def _select_target_fps_frames(frames, source_fps, target_fps, mult, num_input):
     """Pick frames from oversampled [M,C,H,W] tensor to hit target FPS timing.
 
     For downsampling (mult=1, ratio<=1), selects from original input frames.
-    For upsampling, selects from the oversampled sequence at target timestamps.
+    For upsampling, selects the nearest oversampled frame for each target timestamp.
     """
     duration = (num_input - 1) / source_fps
     num_output = int(math.floor(duration * target_fps)) + 1
@@ -129,6 +209,24 @@ GIMM_AVAILABLE_MODELS = [
 GIMM_MODEL_DIR = os.path.join(folder_paths.models_dir, "gimm-vfi")
 if not os.path.exists(GIMM_MODEL_DIR):
     os.makedirs(GIMM_MODEL_DIR, exist_ok=True)
+
+# SPEED
+SPEED_HF_REPO = "zhZ524/SPEED"
+SPEED_DEFAULT_MODEL = "speed.pt"
+SPEED_MODEL_DIR = os.path.join(folder_paths.models_dir, "speed-vfi")
+if not os.path.exists(SPEED_MODEL_DIR):
+    os.makedirs(SPEED_MODEL_DIR, exist_ok=True)
+
+# LDF-VFI
+LDF_HF_REPO = "onecat-ai/LDF-VFI"
+LDF_MODEL_FILES = (
+    "transformer/config.json",
+    "transformer/diffusion_pytorch_model.safetensors",
+    "Wan2.1_VAE_cond_v2.pth",
+)
+LDF_MODEL_DIR = os.path.join(folder_paths.models_dir, "ldf-vfi")
+if not os.path.exists(LDF_MODEL_DIR):
+    os.makedirs(LDF_MODEL_DIR, exist_ok=True)
 
 
 def get_available_models():
@@ -205,6 +303,8 @@ class LoadBIMVFIModel:
 
 
 class BIMVFIInterpolate:
+    MODEL_LABEL = "BIM-VFI"
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -245,7 +345,7 @@ class BIMVFIInterpolate:
                 }),
                 "target_fps": ("FLOAT", {
                     "default": 0.0, "min": 0.0, "max": 1000.0, "step": 0.01,
-                    "tooltip": "Target output FPS. When > 0, overrides multiplier and auto-computes the optimal power-of-2 oversample then selects frames. 0 = use multiplier.",
+                    "tooltip": "Target output FPS. When > 0, overrides multiplier and auto-computes a power-of-2 oversample up to 8x, then selects frames. 0 = use multiplier.",
                 }),
             },
             "optional": {
@@ -273,26 +373,23 @@ class BIMVFIInterpolate:
             Interpolated frames as [M, C, H, W] tensor on storage_device
         """
         for pass_idx in range(num_passes):
-            logger.info(f"BIM-VFI: pass {pass_idx + 1}/{num_passes}, {frames.shape[0]} -> {2 * frames.shape[0] - 1} frames")
+            logger.info(f"{self.MODEL_LABEL}: pass {pass_idx + 1}/{num_passes}, {frames.shape[0]} -> {2 * frames.shape[0] - 1} frames")
             new_frames = []
             num_pairs = frames.shape[0] - 1
             pairs_since_clear = 0
 
             for i in range(0, num_pairs, batch_size):
+                _throw_if_interrupted()
                 batch_end = min(i + batch_size, num_pairs)
                 actual_batch = batch_end - i
 
                 frames0 = frames[i:batch_end]
                 frames1 = frames[i + 1:batch_end + 1]
 
-                if not keep_device:
-                    model.to(device)
-
-                mids = model.interpolate_batch(frames0, frames1, time_step=0.5)
+                mids = _interpolate_batch_with_offload(
+                    model, frames0, frames1, device, keep_device
+                )
                 mids = mids.to(storage_device)
-
-                if not keep_device:
-                    model.to("cpu")
 
                 for j in range(actual_batch):
                     new_frames.append(frames[i + j:i + j + 1])
@@ -302,17 +399,14 @@ class BIMVFIInterpolate:
                 pbar.update_absolute(step_ref[0])
 
                 pairs_since_clear += actual_batch
-                if pairs_since_clear >= clear_cache_after_n_frames and torch.cuda.is_available():
-                    clear_backwarp_cache()
-                    torch.cuda.empty_cache()
+                if pairs_since_clear >= clear_cache_after_n_frames:
+                    _clear_model_cache(model)
                     pairs_since_clear = 0
 
             new_frames.append(frames[-1:])
             frames = torch.cat(new_frames, dim=0)
 
-            if torch.cuda.is_available():
-                clear_backwarp_cache()
-                torch.cuda.empty_cache()
+            _clear_model_cache(model)
 
         return frames
 
@@ -328,16 +422,21 @@ class BIMVFIInterpolate:
 
     def interpolate(self, images, model, multiplier, clear_cache_after_n_frames,
                     keep_device, all_on_gpu, batch_size, chunk_size,
-                    source_fps=0.0, target_fps=0.0, settings=None):
+                    source_fps=0.0, target_fps=0.0, settings=None, seed=None):
         batch_size, chunk_size, keep_device, all_on_gpu, clear_cache_after_n_frames = \
             _apply_vfi_settings(settings, batch_size, chunk_size, keep_device,
                                 all_on_gpu, clear_cache_after_n_frames)
+
+        if seed is not None and hasattr(model, "set_seed"):
+            model.set_seed(seed)
+        if hasattr(model, "reset_seed"):
+            model.reset_seed()
 
         if images.shape[0] < 2:
             return (images, images)
 
         # Target FPS mode: auto-compute multiplier from fps ratio
-        use_target_fps = target_fps > 0 and source_fps > 0
+        use_target_fps = _target_fps_enabled(source_fps, target_fps)
         if use_target_fps:
             num_passes, mult = _compute_target_fps_params(source_fps, target_fps)
             if num_passes == 0:
@@ -354,14 +453,14 @@ class BIMVFIInterpolate:
         if use_target_fps:
             if num_passes == 0:
                 expected = int(math.floor((N - 1) / source_fps * target_fps)) + 1
-                logger.info(f"BIM-VFI: {N} frames, {source_fps}fps -> {target_fps}fps (downsampling), expected output: {expected} frames")
+                logger.info(f"{self.MODEL_LABEL}: {N} frames, {source_fps}fps -> {target_fps}fps (downsampling), expected output: {expected} frames")
             else:
                 expected_target = int(math.floor((N - 1) / source_fps * target_fps)) + 1
-                logger.info(f"BIM-VFI: interpolating {N} frames, {source_fps}fps -> {target_fps}fps (oversample {mult}x, {num_passes} pass(es)), expected output: {expected_target} frames")
+                logger.info(f"{self.MODEL_LABEL}: interpolating {N} frames, {source_fps}fps -> {target_fps}fps (oversample {mult}x, {num_passes} pass(es)), expected output: {expected_target} frames")
         else:
-            logger.info(f"BIM-VFI: interpolating {N} frames, {mult}x ({num_passes} pass(es)), expected output: {expected} frames")
+            logger.info(f"{self.MODEL_LABEL}: interpolating {N} frames, {mult}x ({num_passes} pass(es)), expected output: {expected} frames")
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = _get_torch_device()
 
         if all_on_gpu:
             keep_device = True
@@ -386,7 +485,7 @@ class BIMVFIInterpolate:
                     break
 
         if len(chunks) > 1:
-            logger.info(f"BIM-VFI: processing in {len(chunks)} chunk(s)")
+            logger.info(f"{self.MODEL_LABEL}: processing in {len(chunks)} chunk(s)")
 
         # Calculate total progress steps across all chunks
         total_steps = sum(self._count_steps(ce - cs, num_passes) for cs, ce in chunks)
@@ -427,7 +526,7 @@ class BIMVFIInterpolate:
 
         # Convert back to ComfyUI [B, H, W, C], on CPU
         result = result.cpu().permute(0, 2, 3, 1)
-        logger.info(f"BIM-VFI: done, {result.shape[0]} output frames")
+        logger.info(f"{self.MODEL_LABEL}: done, {result.shape[0]} output frames")
         return (result, oversampled)
 
 
@@ -463,13 +562,18 @@ class BIMVFISegmentInterpolate(BIMVFIInterpolate):
     def interpolate(self, images, model, multiplier, clear_cache_after_n_frames,
                     keep_device, all_on_gpu, batch_size, chunk_size,
                     segment_index, segment_size,
-                    source_fps=0.0, target_fps=0.0, settings=None):
+                    source_fps=0.0, target_fps=0.0, settings=None, seed=None):
         batch_size, chunk_size, keep_device, all_on_gpu, clear_cache_after_n_frames = \
             _apply_vfi_settings(settings, batch_size, chunk_size, keep_device,
                                 all_on_gpu, clear_cache_after_n_frames)
 
+        if seed is not None and hasattr(model, "set_seed"):
+            model.set_seed(seed)
+        if hasattr(model, "reset_seed"):
+            model.reset_seed()
+
         total_input = images.shape[0]
-        use_target_fps = target_fps > 0 and source_fps > 0
+        use_target_fps = _target_fps_enabled(source_fps, target_fps)
 
         # Compute segment boundaries (1-frame overlap)
         start = segment_index * (segment_size - 1)
@@ -480,7 +584,7 @@ class BIMVFISegmentInterpolate(BIMVFIInterpolate):
             return (images[:1], model)
 
         segment_images = images[start:end]
-        logger.info(f"BIM-VFI segment {segment_index}: input frames [{start}:{end}] of {total_input}")
+        logger.info(f"{self.MODEL_LABEL} segment {segment_index}: input frames [{start}:{end}] of {total_input}")
 
         if use_target_fps:
             num_passes, mult = _compute_target_fps_params(source_fps, target_fps)
@@ -498,9 +602,12 @@ class BIMVFISegmentInterpolate(BIMVFIInterpolate):
             j_end = min(int(math.floor(seg_end_time * target_fps)), total_output - 1)
 
             if j_start > j_end:
-                return (images[:1], model)
+                raise ValueError(
+                    "This segment contains no frames at the requested target FPS. "
+                    "Increase segment_size or use the non-segment Interpolate node."
+                )
 
-            logger.info(f"BIM-VFI segment {segment_index}: target fps output j=[{j_start}..{j_end}]")
+            logger.info(f"{self.MODEL_LABEL} segment {segment_index}: target fps output j=[{j_start}..{j_end}]")
 
             if num_passes == 0:
                 # Downsampling — select from segment input directly
@@ -516,7 +623,7 @@ class BIMVFISegmentInterpolate(BIMVFIInterpolate):
                 return (result, model)
 
             # Oversample segment using computed num_passes
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            device = _get_torch_device()
             if all_on_gpu:
                 keep_device = True
             storage_device = device if all_on_gpu else torch.device("cpu")
@@ -549,6 +656,7 @@ class BIMVFISegmentInterpolate(BIMVFIInterpolate):
         (result, _) = super().interpolate(
             segment_images, model, multiplier, clear_cache_after_n_frames,
             keep_device, all_on_gpu, batch_size, chunk_size,
+            seed=seed,
         )
 
         if is_continuation:
@@ -627,6 +735,13 @@ class TweenConcatVideos:
 
         if not os.path.isdir(out_dir):
             raise ValueError(f"Output directory does not exist: {out_dir}")
+        if (
+            not output_filename
+            or os.path.basename(output_filename) != output_filename
+            or any(char in output_filename for char in "\r\n")
+        ):
+            raise ValueError("output_filename must be a plain filename without newlines")
+        output_path = os.path.abspath(os.path.join(out_dir, output_filename))
 
         # Find segment files matching the prefix
         safe_prefix = glob.escape(filename_prefix)
@@ -635,7 +750,16 @@ class TweenConcatVideos:
             segments.extend(
                 glob.glob(os.path.join(out_dir, f"{safe_prefix}_*.{ext}"))
             )
-        segments.sort()
+        segments = [
+            segment for segment in segments
+            if os.path.abspath(segment) != output_path
+        ]
+        if any("\n" in segment or "\r" in segment for segment in segments):
+            raise ValueError("Segment filenames cannot contain newline characters")
+        segments.sort(key=lambda path: [
+            int(part) if part.isdigit() else part.lower()
+            for part in re.split(r"(\d+)", os.path.basename(path))
+        ])
 
         if not segments:
             raise FileNotFoundError(
@@ -655,7 +779,6 @@ class TweenConcatVideos:
                     escaped = os.path.abspath(seg).replace("\\", "\\\\").replace("'", "\\'")
                     f.write(f"file '{escaped}'\n")
 
-            output_path = os.path.join(out_dir, output_filename)
             ffmpeg = self._find_ffmpeg()
 
             cmd = [
@@ -710,7 +833,7 @@ class VFIOptimizer:
                     "tooltip": "Input images — only the first 2 frames are used for calibration.",
                 }),
                 "model": ("*", {
-                    "tooltip": "Any VFI model (BIM, EMA, SGM, GIMM). Used for benchmark inference.",
+                    "tooltip": "Any pairwise VFI model (BIM, EMA, SGM, GIMM, SPEED). LDF-VFI uses a separate sequence pipeline.",
                 }),
                 "min_free_vram_gb": ("FLOAT", {
                     "default": 2.0, "min": 0.0, "max": 48.0, "step": 0.5,
@@ -744,11 +867,13 @@ class VFIOptimizer:
         })
 
     def optimize(self, images, model, min_free_vram_gb, force_batch_size=0):
-        if images.shape[0] < 2 or not torch.cuda.is_available():
-            logger.info("VFI Optimizer: <2 frames or no CUDA, returning conservative defaults")
+        if isinstance(model, LDFVFIModel):
+            logger.info("VFI Optimizer: LDF-VFI is sequence-native; returning conservative defaults")
             return self._conservative_defaults(images)
-
-        device = torch.device("cuda")
+        device = _get_torch_device()
+        if images.shape[0] < 2 or device.type != "cuda":
+            logger.info("VFI Optimizer: <2 frames or selected device is not CUDA; returning conservative defaults")
+            return self._conservative_defaults(images)
 
         # --- Static analysis: model VRAM ---
         model_params = getattr(model, "model", model)
@@ -765,6 +890,7 @@ class VFIOptimizer:
         frame1 = images[1:2].permute(0, 3, 1, 2)
 
         try:
+            _throw_if_interrupted()
             model.to(device)
             torch.cuda.reset_peak_memory_stats(device)
             mem_before = torch.cuda.memory_allocated(device)
@@ -778,18 +904,20 @@ class VFIOptimizer:
             peak_mem = torch.cuda.max_memory_allocated(device)
             per_pair_vram_bytes = peak_mem - mem_before
         except Exception as e:
+            interrupt_type = getattr(model_management, "InterruptProcessingException", ())
+            if interrupt_type and isinstance(e, interrupt_type):
+                raise
             logger.warning(f"VFI Optimizer: calibration failed ({e}), returning conservative defaults")
-            try:
-                _clear_model_cache(model)
-                model.to("cpu")
-            except Exception:
-                pass
             return self._conservative_defaults(images)
         finally:
-            _clear_model_cache(model)
-            model.to("cpu")
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            try:
+                model.to("cpu")
+            except Exception:
+                logger.exception("VFI Optimizer: model offload failed")
+            try:
+                _clear_model_cache(model)
+            except Exception:
+                logger.exception("VFI Optimizer: cache cleanup failed")
 
         per_pair_vram_mb = max(per_pair_vram_bytes / (1024 ** 2), 1.0)
 
@@ -984,7 +1112,7 @@ class EMAVFIInterpolate:
                 }),
                 "target_fps": ("FLOAT", {
                     "default": 0.0, "min": 0.0, "max": 1000.0, "step": 0.01,
-                    "tooltip": "Target output FPS. When > 0, overrides multiplier and auto-computes the optimal power-of-2 oversample then selects frames. 0 = use multiplier.",
+                    "tooltip": "Target output FPS. When > 0, overrides multiplier and auto-computes a power-of-2 oversample up to 8x, then selects frames. 0 = use multiplier.",
                 }),
             },
             "optional": {
@@ -1011,20 +1139,17 @@ class EMAVFIInterpolate:
             pairs_since_clear = 0
 
             for i in range(0, num_pairs, batch_size):
+                _throw_if_interrupted()
                 batch_end = min(i + batch_size, num_pairs)
                 actual_batch = batch_end - i
 
                 frames0 = frames[i:batch_end]
                 frames1 = frames[i + 1:batch_end + 1]
 
-                if not keep_device:
-                    model.to(device)
-
-                mids = model.interpolate_batch(frames0, frames1, time_step=0.5)
+                mids = _interpolate_batch_with_offload(
+                    model, frames0, frames1, device, keep_device
+                )
                 mids = mids.to(storage_device)
-
-                if not keep_device:
-                    model.to("cpu")
 
                 for j in range(actual_batch):
                     new_frames.append(frames[i + j:i + j + 1])
@@ -1034,17 +1159,16 @@ class EMAVFIInterpolate:
                 pbar.update_absolute(step_ref[0])
 
                 pairs_since_clear += actual_batch
-                if pairs_since_clear >= clear_cache_after_n_frames and torch.cuda.is_available():
+                if pairs_since_clear >= clear_cache_after_n_frames:
                     clear_ema_warp_cache()
-                    torch.cuda.empty_cache()
+                    _soft_empty_cache()
                     pairs_since_clear = 0
 
             new_frames.append(frames[-1:])
             frames = torch.cat(new_frames, dim=0)
 
-            if torch.cuda.is_available():
-                clear_ema_warp_cache()
-                torch.cuda.empty_cache()
+            clear_ema_warp_cache()
+            _soft_empty_cache()
 
         return frames
 
@@ -1069,7 +1193,7 @@ class EMAVFIInterpolate:
             return (images, images)
 
         # Target FPS mode: auto-compute multiplier from fps ratio
-        use_target_fps = target_fps > 0 and source_fps > 0
+        use_target_fps = _target_fps_enabled(source_fps, target_fps)
         if use_target_fps:
             num_passes, mult = _compute_target_fps_params(source_fps, target_fps)
             if num_passes == 0:
@@ -1092,7 +1216,7 @@ class EMAVFIInterpolate:
         else:
             logger.info(f"EMA-VFI: interpolating {N} frames, {mult}x ({num_passes} pass(es)), expected output: {expected} frames")
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = _get_torch_device()
 
         if all_on_gpu:
             keep_device = True
@@ -1200,7 +1324,7 @@ class EMAVFISegmentInterpolate(EMAVFIInterpolate):
                                 all_on_gpu, clear_cache_after_n_frames)
 
         total_input = images.shape[0]
-        use_target_fps = target_fps > 0 and source_fps > 0
+        use_target_fps = _target_fps_enabled(source_fps, target_fps)
 
         # Compute segment boundaries (1-frame overlap)
         start = segment_index * (segment_size - 1)
@@ -1227,7 +1351,10 @@ class EMAVFISegmentInterpolate(EMAVFIInterpolate):
             j_end = min(int(math.floor(seg_end_time * target_fps)), total_output - 1)
 
             if j_start > j_end:
-                return (images[:1], model)
+                raise ValueError(
+                    "This segment contains no frames at the requested target FPS. "
+                    "Increase segment_size or use the non-segment Interpolate node."
+                )
 
             logger.info(f"EMA-VFI segment {segment_index}: target fps output j=[{j_start}..{j_end}]")
 
@@ -1244,7 +1371,7 @@ class EMAVFISegmentInterpolate(EMAVFIInterpolate):
                 return (result, model)
 
             # Oversample segment using computed num_passes
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            device = _get_torch_device()
             if all_on_gpu:
                 keep_device = True
             storage_device = device if all_on_gpu else torch.device("cpu")
@@ -1412,7 +1539,7 @@ class SGMVFIInterpolate:
                 }),
                 "target_fps": ("FLOAT", {
                     "default": 0.0, "min": 0.0, "max": 1000.0, "step": 0.01,
-                    "tooltip": "Target output FPS. When > 0, overrides multiplier and auto-computes the optimal power-of-2 oversample then selects frames. 0 = use multiplier.",
+                    "tooltip": "Target output FPS. When > 0, overrides multiplier and auto-computes a power-of-2 oversample up to 8x, then selects frames. 0 = use multiplier.",
                 }),
             },
             "optional": {
@@ -1439,20 +1566,17 @@ class SGMVFIInterpolate:
             pairs_since_clear = 0
 
             for i in range(0, num_pairs, batch_size):
+                _throw_if_interrupted()
                 batch_end = min(i + batch_size, num_pairs)
                 actual_batch = batch_end - i
 
                 frames0 = frames[i:batch_end]
                 frames1 = frames[i + 1:batch_end + 1]
 
-                if not keep_device:
-                    model.to(device)
-
-                mids = model.interpolate_batch(frames0, frames1, time_step=0.5)
+                mids = _interpolate_batch_with_offload(
+                    model, frames0, frames1, device, keep_device
+                )
                 mids = mids.to(storage_device)
-
-                if not keep_device:
-                    model.to("cpu")
 
                 for j in range(actual_batch):
                     new_frames.append(frames[i + j:i + j + 1])
@@ -1462,17 +1586,16 @@ class SGMVFIInterpolate:
                 pbar.update_absolute(step_ref[0])
 
                 pairs_since_clear += actual_batch
-                if pairs_since_clear >= clear_cache_after_n_frames and torch.cuda.is_available():
+                if pairs_since_clear >= clear_cache_after_n_frames:
                     clear_sgm_warp_cache()
-                    torch.cuda.empty_cache()
+                    _soft_empty_cache()
                     pairs_since_clear = 0
 
             new_frames.append(frames[-1:])
             frames = torch.cat(new_frames, dim=0)
 
-            if torch.cuda.is_available():
-                clear_sgm_warp_cache()
-                torch.cuda.empty_cache()
+            clear_sgm_warp_cache()
+            _soft_empty_cache()
 
         return frames
 
@@ -1497,7 +1620,7 @@ class SGMVFIInterpolate:
             return (images, images)
 
         # Target FPS mode: auto-compute multiplier from fps ratio
-        use_target_fps = target_fps > 0 and source_fps > 0
+        use_target_fps = _target_fps_enabled(source_fps, target_fps)
         if use_target_fps:
             num_passes, mult = _compute_target_fps_params(source_fps, target_fps)
             if num_passes == 0:
@@ -1520,7 +1643,7 @@ class SGMVFIInterpolate:
         else:
             logger.info(f"SGM-VFI: interpolating {N} frames, {mult}x ({num_passes} pass(es)), expected output: {expected} frames")
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = _get_torch_device()
 
         if all_on_gpu:
             keep_device = True
@@ -1628,7 +1751,7 @@ class SGMVFISegmentInterpolate(SGMVFIInterpolate):
                                 all_on_gpu, clear_cache_after_n_frames)
 
         total_input = images.shape[0]
-        use_target_fps = target_fps > 0 and source_fps > 0
+        use_target_fps = _target_fps_enabled(source_fps, target_fps)
 
         # Compute segment boundaries (1-frame overlap)
         start = segment_index * (segment_size - 1)
@@ -1655,7 +1778,10 @@ class SGMVFISegmentInterpolate(SGMVFIInterpolate):
             j_end = min(int(math.floor(seg_end_time * target_fps)), total_output - 1)
 
             if j_start > j_end:
-                return (images[:1], model)
+                raise ValueError(
+                    "This segment contains no frames at the requested target FPS. "
+                    "Increase segment_size or use the non-segment Interpolate node."
+                )
 
             logger.info(f"SGM-VFI segment {segment_index}: target fps output j=[{j_start}..{j_end}]")
 
@@ -1672,7 +1798,7 @@ class SGMVFISegmentInterpolate(SGMVFIInterpolate):
                 return (result, model)
 
             # Oversample segment using computed num_passes
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            device = _get_torch_device()
             if all_on_gpu:
                 keep_device = True
             storage_device = device if all_on_gpu else torch.device("cpu")
@@ -1711,6 +1837,354 @@ class SGMVFISegmentInterpolate(SGMVFIInterpolate):
             result = result[1:]
 
         return (result, model)
+
+
+# ---------------------------------------------------------------------------
+# LDF-VFI nodes
+# ---------------------------------------------------------------------------
+
+def ensure_ldf_model_files():
+    missing = [
+        filename for filename in LDF_MODEL_FILES
+        if not os.path.isfile(os.path.join(LDF_MODEL_DIR, filename))
+    ]
+    if not missing:
+        return
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError as exc:
+        raise RuntimeError(
+            "huggingface_hub is required to download LDF-VFI. "
+            "Install it with: pip install huggingface_hub"
+        ) from exc
+
+    logger.warning(
+        "Downloading LDF-VFI from %s (~6.4 GB total). This only happens once.",
+        LDF_HF_REPO,
+    )
+    for filename in missing:
+        logger.info("Downloading LDF-VFI file: %s", filename)
+        downloaded = hf_hub_download(
+            repo_id=LDF_HF_REPO,
+            filename=filename,
+            local_dir=LDF_MODEL_DIR,
+        )
+        if not os.path.isfile(downloaded):
+            raise RuntimeError(f"Failed to download LDF-VFI file: {filename}")
+
+
+class LoadLDFVFIModel:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "model": (["onecat-ai/LDF-VFI"], {
+                    "default": "onecat-ai/LDF-VFI",
+                    "tooltip": "Official LDF-VFI transformer + conditional VAE. Downloads ~6.4 GB on first use and needs about 20 GB VRAM.",
+                }),
+                "tile_size": ("INT", {
+                    "default": 256, "min": 128, "max": 1024, "step": 8,
+                    "tooltip": "Spatial VAE tile size. Larger tiles can improve throughput but use more VRAM.",
+                }),
+                "tile_overlap": ("INT", {
+                    "default": 64, "min": 8, "max": 512, "step": 8,
+                    "tooltip": "Spatial overlap blended between VAE tiles. Must be smaller than tile_size.",
+                }),
+                "vae_batch_size": ("INT", {
+                    "default": 8, "min": 1, "max": 32, "step": 1,
+                    "tooltip": "VAE temporal-tile batch size. Lower this first if VAE encoding or decoding runs out of VRAM.",
+                }),
+                "attention_type": ([
+                    "slide_chunk_all_block_2x1x1",
+                    "slide_chunk_all_block",
+                    "slide_chunk_all",
+                    "full",
+                ], {
+                    "default": "slide_chunk_all_block_2x1x1",
+                    "tooltip": "Official quick-start sparse attention is recommended. Full attention is extremely memory-intensive.",
+                }),
+            }
+        }
+
+    RETURN_TYPES = ("LDF_VFI_MODEL",)
+    RETURN_NAMES = ("model",)
+    FUNCTION = "load_model"
+    CATEGORY = "video/LDF-VFI"
+
+    def load_model(self, model, tile_size, tile_overlap, vae_batch_size, attention_type):
+        del model  # The combo documents the fixed official checkpoint.
+        if tile_overlap >= tile_size:
+            raise ValueError("LDF-VFI tile_overlap must be smaller than tile_size")
+        source_root = ensure_upstream_source("ldf", LDF_MODEL_DIR)
+        ensure_ldf_model_files()
+        wrapper = LDFVFIModel(
+            model_root=LDF_MODEL_DIR,
+            vae_path=os.path.join(LDF_MODEL_DIR, "Wan2.1_VAE_cond_v2.pth"),
+            source_root=source_root,
+            tile_size=tile_size,
+            tile_overlap=tile_overlap,
+            vae_batch_size=vae_batch_size,
+            attention_type=attention_type,
+        )
+        logger.info(
+            "LDF-VFI loaded on CPU (tile=%s, overlap=%s, VAE batch=%s)",
+            tile_size, tile_overlap, vae_batch_size,
+        )
+        return (wrapper,)
+
+
+class LDFVFIInterpolate:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "images": ("IMAGE", {
+                    "tooltip": "Ordered source sequence. LDF models it holistically with internal skip-concat chunks.",
+                }),
+                "model": ("LDF_VFI_MODEL", {
+                    "tooltip": "LDF-VFI model from the Load LDF-VFI Model node.",
+                }),
+                "temporal_factor": ("INT", {
+                    "default": 8, "min": 2, "max": 16, "step": 1,
+                    "tooltip": "Native temporal upsampling factor. LDF supports every integer from 2x through 16x.",
+                }),
+                "sampling_steps": ("INT", {
+                    "default": 16, "min": 1, "max": 100, "step": 1,
+                    "tooltip": "Diffusion steps per temporal chunk. Official quick start uses 16; fewer is faster but may reduce quality.",
+                }),
+                "t_shift": ("FLOAT", {
+                    "default": 8.0, "min": 0.1, "max": 20.0, "step": 0.1,
+                    "tooltip": "Diffusion timestep shift. Official quick start uses 8.",
+                }),
+                "t_cond": ("FLOAT", {
+                    "default": 0.1, "min": 0.0, "max": 1.0, "step": 0.01,
+                    "tooltip": "Noise applied to autoregressive boundary latents during skip-concat sampling.",
+                }),
+                "seed": ("INT", {
+                    "default": 42, "min": 0, "max": 0x7FFFFFFF, "step": 1,
+                    "tooltip": "Seed for VAE sampling and diffusion noise.",
+                }),
+                "offload_after": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "Move the ~6.4 GB model stack back to CPU after generation to release VRAM.",
+                }),
+                "source_fps": ("FLOAT", {
+                    "default": 0.0, "min": 0.0, "max": 1000.0, "step": 0.01,
+                    "tooltip": "Input FPS. Set with target_fps to produce the requested output cadence.",
+                }),
+                "target_fps": ("FLOAT", {
+                    "default": 0.0, "min": 0.0, "max": 1000.0, "step": 0.01,
+                    "tooltip": "Optional exact output FPS. Chooses the smallest native integer factor up to 16x, then selects the nearest generated frames.",
+                }),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "IMAGE")
+    RETURN_NAMES = ("images", "generated_sequence")
+    FUNCTION = "interpolate"
+    CATEGORY = "video/LDF-VFI"
+
+    def interpolate(self, images, model, temporal_factor, sampling_steps,
+                    t_shift, t_cond, seed, offload_after,
+                    source_fps=0.0, target_fps=0.0):
+        if images.shape[0] < 2:
+            return (images, images)
+        device = _get_torch_device()
+        if device.type != "cuda":
+            raise RuntimeError(
+                f"LDF-VFI requires an NVIDIA CUDA GPU with BF16 support; "
+                f"ComfyUI selected {device}"
+            )
+
+        use_target_fps = _target_fps_enabled(source_fps, target_fps)
+        if use_target_fps:
+            ratio = target_fps / source_fps
+            if ratio <= 1:
+                source = images.permute(0, 3, 1, 2)
+                selected = _select_target_fps_frames(
+                    source, source_fps, target_fps, 1, source.shape[0]
+                ).permute(0, 2, 3, 1).cpu()
+                return (selected, images)
+            temporal_factor = math.ceil(ratio)
+            if temporal_factor > 16:
+                raise ValueError(
+                    f"LDF-VFI supports at most 16x, but {source_fps} -> {target_fps} FPS needs {temporal_factor}x"
+                )
+
+        source = images.permute(0, 3, 1, 2).contiguous()
+        blocks = model.sampling_block_count(source.shape[0], temporal_factor)
+        pbar = ProgressBar(blocks * sampling_steps)
+        progress_step = [0]
+
+        def update_progress():
+            _throw_if_interrupted()
+            progress_step[0] += 1
+            pbar.update_absolute(progress_step[0])
+
+        logger.info(
+            "LDF-VFI: %s source frames, %sx, %s sampling steps, %s diffusion blocks",
+            source.shape[0], temporal_factor, sampling_steps, blocks,
+        )
+        try:
+            model.to(device)
+            generated = model.interpolate_sequence(
+                source,
+                temporal_factor=temporal_factor,
+                num_steps=sampling_steps,
+                t_shift=t_shift,
+                t_cond=t_cond,
+                seed=seed,
+                progress_callback=update_progress,
+            )
+        finally:
+            generation_failed = sys.exc_info()[0] is not None
+            cleanup_error = None
+            if offload_after:
+                try:
+                    model.to("cpu")
+                except Exception as exc:
+                    cleanup_error = exc
+                    logger.exception("Failed to offload LDF-VFI after generation")
+            try:
+                _clear_model_cache(model)
+            except Exception as exc:
+                if cleanup_error is None:
+                    cleanup_error = exc
+                logger.exception("Failed to clear LDF-VFI caches")
+            if cleanup_error is not None and not generation_failed:
+                raise RuntimeError("LDF-VFI cleanup failed") from cleanup_error
+
+        generated_sequence = generated.permute(0, 2, 3, 1).cpu()
+        if use_target_fps:
+            generated = _select_target_fps_frames(
+                generated, source_fps, target_fps,
+                temporal_factor, source.shape[0],
+            )
+        result = generated.permute(0, 2, 3, 1).cpu()
+        logger.info("LDF-VFI: done, %s output frames", result.shape[0])
+        return (result, generated_sequence)
+
+
+# ---------------------------------------------------------------------------
+# SPEED nodes
+# ---------------------------------------------------------------------------
+
+def get_available_speed_models():
+    models = []
+    if os.path.isdir(SPEED_MODEL_DIR):
+        for filename in os.listdir(SPEED_MODEL_DIR):
+            if filename.endswith((".pt", ".pth", ".ckpt")):
+                models.append(filename)
+    if not models:
+        models.append(SPEED_DEFAULT_MODEL)
+    return sorted(models)
+
+
+def download_speed_model(filename, dest_dir):
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError as exc:
+        raise RuntimeError(
+            "huggingface_hub is required to auto-download SPEED. "
+            "Install it with: pip install huggingface_hub"
+        ) from exc
+
+    logger.info("Downloading %s from Hugging Face (%s)...", filename, SPEED_HF_REPO)
+    downloaded = hf_hub_download(
+        repo_id=SPEED_HF_REPO,
+        filename=filename,
+        local_dir=dest_dir,
+    )
+    if not os.path.isfile(downloaded):
+        raise RuntimeError(f"Failed to download SPEED checkpoint to {downloaded}")
+    return downloaded
+
+
+class LoadSPEEDVFIModel:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "model_path": (get_available_speed_models(), {
+                    "default": SPEED_DEFAULT_MODEL,
+                    "tooltip": "Checkpoint in models/speed-vfi/. The official ~447 MB checkpoint and pinned runtime source download on first use.",
+                }),
+                "precision": (["auto", "bf16", "fp16", "fp32"], {
+                    "default": "auto",
+                    "tooltip": "Inference precision. Auto uses BF16 on supported CUDA GPUs, otherwise FP16. FP32 is slower and uses more VRAM.",
+                }),
+            }
+        }
+
+    RETURN_TYPES = ("SPEED_VFI_MODEL",)
+    RETURN_NAMES = ("model",)
+    FUNCTION = "load_model"
+    CATEGORY = "video/SPEED"
+
+    def load_model(self, model_path, precision):
+        source_root = ensure_upstream_source("speed", SPEED_MODEL_DIR)
+        full_path = os.path.join(SPEED_MODEL_DIR, model_path)
+        if not os.path.isfile(full_path):
+            full_path = download_speed_model(model_path, SPEED_MODEL_DIR)
+
+        wrapper = SpeedVFIModel(
+            checkpoint_path=full_path,
+            source_root=source_root,
+            precision=precision,
+            device="cpu",
+        )
+        logger.info("SPEED loaded (precision=%s)", precision)
+        return (wrapper,)
+
+
+class SPEEDVFIInterpolate(BIMVFIInterpolate):
+    MODEL_LABEL = "SPEED"
+    CATEGORY = "video/SPEED"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        inputs = BIMVFIInterpolate.INPUT_TYPES()
+        inputs["required"]["model"] = ("SPEED_VFI_MODEL", {
+            "tooltip": "SPEED model from the Load SPEED Model node.",
+        })
+        inputs["required"]["multiplier"] = ([2, 4, 8], {
+            "default": 2,
+            "tooltip": "SPEED is midpoint-only: 4x and 8x use recursive midpoint passes.",
+        })
+        inputs["required"]["seed"] = ("INT", {
+            "default": 0, "min": 0, "max": 0x7FFFFFFF, "step": 1,
+            "tooltip": "SPEED starts from random pixel noise. The seed makes the same execution settings repeatable without reloading the model.",
+        })
+        inputs["required"]["batch_size"][1]["tooltip"] += (
+            " SPEED is stochastic, so changing batch size can change how seeded noise is assigned to pairs."
+        )
+        inputs["required"]["chunk_size"][1]["tooltip"] = (
+            "Process the source in overlapping chunks to bound VRAM. SPEED remains repeatable for the same "
+            "seed and settings, but changing chunk or batch boundaries can change its stochastic result."
+        )
+        inputs["required"]["keep_device"][1]["tooltip"] = (
+            "Keep the ~235M-parameter model on GPU between batches. Faster, but uses substantial VRAM."
+        )
+        return inputs
+
+
+class SPEEDVFISegmentInterpolate(BIMVFISegmentInterpolate):
+    MODEL_LABEL = "SPEED"
+    RETURN_TYPES = ("IMAGE", "SPEED_VFI_MODEL")
+    CATEGORY = "video/SPEED"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        inputs = SPEEDVFIInterpolate.INPUT_TYPES()
+        inputs["required"]["segment_index"] = ("INT", {
+            "default": 0, "min": 0, "max": 10000, "step": 1,
+            "tooltip": "Zero-based segment to process. Adjacent segments overlap by one source frame.",
+        })
+        inputs["required"]["segment_size"] = ("INT", {
+            "default": 500, "min": 2, "max": 10000, "step": 1,
+            "tooltip": "Input frames per segment. Save each segment before processing the next to bound RAM.",
+        })
+        return inputs
 
 
 # ---------------------------------------------------------------------------
@@ -1857,7 +2331,7 @@ class GIMMVFIInterpolate:
                 }),
                 "target_fps": ("FLOAT", {
                     "default": 0.0, "min": 0.0, "max": 1000.0, "step": 0.01,
-                    "tooltip": "Target output FPS. When > 0, overrides multiplier and auto-computes the optimal power-of-2 oversample then selects frames. 0 = use multiplier.",
+                    "tooltip": "Target output FPS. When > 0, overrides multiplier and auto-computes a power-of-2 oversample up to 8x, then selects frames. 0 = use multiplier.",
                 }),
             },
             "optional": {
@@ -1884,17 +2358,14 @@ class GIMMVFIInterpolate:
         pairs_since_clear = 0
 
         for i in range(num_pairs):
+            _throw_if_interrupted()
             frame0 = frames[i:i+1]
             frame1 = frames[i+1:i+2]
 
-            if not keep_device:
-                model.to(device)
-
-            mids = model.interpolate_multi(frame0, frame1, num_intermediates)
+            mids = _interpolate_multi_with_offload(
+                model, frame0, frame1, num_intermediates, device, keep_device
+            )
             mids = [m.to(storage_device) for m in mids]
-
-            if not keep_device:
-                model.to("cpu")
 
             new_frames.append(frames[i:i+1])
             for m in mids:
@@ -1904,17 +2375,16 @@ class GIMMVFIInterpolate:
             pbar.update_absolute(step_ref[0])
 
             pairs_since_clear += 1
-            if pairs_since_clear >= clear_cache_after_n_frames and torch.cuda.is_available():
+            if pairs_since_clear >= clear_cache_after_n_frames:
                 clear_gimm_caches()
-                torch.cuda.empty_cache()
+                _soft_empty_cache()
                 pairs_since_clear = 0
 
         new_frames.append(frames[-1:])
         result = torch.cat(new_frames, dim=0)
 
-        if torch.cuda.is_available():
-            clear_gimm_caches()
-            torch.cuda.empty_cache()
+        clear_gimm_caches()
+        _soft_empty_cache()
 
         return result
 
@@ -1929,20 +2399,17 @@ class GIMMVFIInterpolate:
             pairs_since_clear = 0
 
             for i in range(0, num_pairs, batch_size):
+                _throw_if_interrupted()
                 batch_end = min(i + batch_size, num_pairs)
                 actual_batch = batch_end - i
 
                 frames0 = frames[i:batch_end]
                 frames1 = frames[i + 1:batch_end + 1]
 
-                if not keep_device:
-                    model.to(device)
-
-                mids = model.interpolate_batch(frames0, frames1, time_step=0.5)
+                mids = _interpolate_batch_with_offload(
+                    model, frames0, frames1, device, keep_device
+                )
                 mids = mids.to(storage_device)
-
-                if not keep_device:
-                    model.to("cpu")
 
                 for j in range(actual_batch):
                     new_frames.append(frames[i + j:i + j + 1])
@@ -1952,17 +2419,16 @@ class GIMMVFIInterpolate:
                 pbar.update_absolute(step_ref[0])
 
                 pairs_since_clear += actual_batch
-                if pairs_since_clear >= clear_cache_after_n_frames and torch.cuda.is_available():
+                if pairs_since_clear >= clear_cache_after_n_frames:
                     clear_gimm_caches()
-                    torch.cuda.empty_cache()
+                    _soft_empty_cache()
                     pairs_since_clear = 0
 
             new_frames.append(frames[-1:])
             frames = torch.cat(new_frames, dim=0)
 
-            if torch.cuda.is_available():
-                clear_gimm_caches()
-                torch.cuda.empty_cache()
+            clear_gimm_caches()
+            _soft_empty_cache()
 
         return frames
 
@@ -1988,7 +2454,7 @@ class GIMMVFIInterpolate:
             return (images, images)
 
         # Target FPS mode: auto-compute multiplier from fps ratio
-        use_target_fps = target_fps > 0 and source_fps > 0
+        use_target_fps = _target_fps_enabled(source_fps, target_fps)
         if use_target_fps:
             num_passes, mult = _compute_target_fps_params(source_fps, target_fps)
             if num_passes == 0:
@@ -2000,6 +2466,12 @@ class GIMMVFIInterpolate:
         else:
             mult = multiplier
 
+        if not single_pass or use_target_fps:
+            num_passes_recursive = (
+                num_passes if use_target_fps
+                else {2: 1, 4: 2, 8: 3}[multiplier]
+            )
+
         N = images.shape[0]
         expected = mult * (N - 1) + 1
         if use_target_fps:
@@ -2010,15 +2482,10 @@ class GIMMVFIInterpolate:
                 expected_target = int(math.floor((N - 1) / source_fps * target_fps)) + 1
                 logger.info(f"GIMM-VFI: interpolating {N} frames, {source_fps}fps -> {target_fps}fps (oversample {mult}x, {num_passes} pass(es)), expected output: {expected_target} frames")
         else:
-            logger.info(f"GIMM-VFI: interpolating {N} frames, {mult}x ({num_passes if not single_pass else 'single-pass'}), expected output: {expected} frames")
+            mode = f"{num_passes_recursive} recursive pass(es)" if not single_pass else "single-pass"
+            logger.info(f"GIMM-VFI: interpolating {N} frames, {mult}x ({mode}), expected output: {expected} frames")
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        if not single_pass or use_target_fps:
-            if use_target_fps:
-                num_passes_recursive = num_passes
-            else:
-                num_passes_recursive = {2: 1, 4: 2, 8: 3}[multiplier]
+        device = _get_torch_device()
 
         if all_on_gpu:
             keep_device = True
@@ -2136,7 +2603,7 @@ class GIMMVFISegmentInterpolate(GIMMVFIInterpolate):
                                 all_on_gpu, clear_cache_after_n_frames)
 
         total_input = images.shape[0]
-        use_target_fps = target_fps > 0 and source_fps > 0
+        use_target_fps = _target_fps_enabled(source_fps, target_fps)
 
         # Compute segment boundaries (1-frame overlap)
         start = segment_index * (segment_size - 1)
@@ -2163,7 +2630,10 @@ class GIMMVFISegmentInterpolate(GIMMVFIInterpolate):
             j_end = min(int(math.floor(seg_end_time * target_fps)), total_output - 1)
 
             if j_start > j_end:
-                return (images[:1], model)
+                raise ValueError(
+                    "This segment contains no frames at the requested target FPS. "
+                    "Increase segment_size or use the non-segment Interpolate node."
+                )
 
             logger.info(f"GIMM-VFI segment {segment_index}: target fps output j=[{j_start}..{j_end}]")
 
@@ -2180,7 +2650,7 @@ class GIMMVFISegmentInterpolate(GIMMVFIInterpolate):
                 return (result, model)
 
             # Oversample segment directly
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            device = _get_torch_device()
             if all_on_gpu:
                 keep_device = True
             storage_device = device if all_on_gpu else torch.device("cpu")

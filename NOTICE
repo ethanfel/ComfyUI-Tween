@@ -1,0 +1,11 @@
+ComfyUI-Tween
+
+The LDF-VFI sequence sampling adapter in ldf_backend.py is based on the
+official LDF-VFI implementation:
+https://github.com/xypeng9903/LDF-VFI
+
+LDF-VFI is distributed under the Apache License, Version 2.0. Its official
+runtime is downloaded on demand and retains its upstream LICENSE file.
+
+SPEED runtime source is not redistributed by this project. It is downloaded
+on demand from the official repository at a checksum-pinned commit.

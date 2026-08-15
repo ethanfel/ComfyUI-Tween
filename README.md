@@ -3,9 +3,9 @@
 [![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom_Node-0a7ef0)](https://registry.comfy.org/)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Models](https://img.shields.io/badge/VFI_Models-4-8B5CF6)](#which-model-should-i-use)
+[![Models](https://img.shields.io/badge/VFI_Models-6-8B5CF6)](#which-model-should-i-use)
 
-Four video frame interpolation models in one package — **BIM-VFI**, **EMA-VFI**, **SGM-VFI**, and **GIMM-VFI**. Designed for long videos with thousands of frames without running out of VRAM.
+Six video frame interpolation models in one package — **BIM-VFI**, **EMA-VFI**, **SGM-VFI**, **GIMM-VFI**, **SPEED**, and **LDF-VFI**. Pairwise models include chunked/segmented processing; LDF-VFI adds holistic long-sequence diffusion interpolation.
 
 <p align="center">
   <img src="assets/model-comparison.svg" alt="Model Comparison" width="720"/>
@@ -21,11 +21,19 @@ git clone https://github.com/Ethanfel/ComfyUI-Tween.git
 pip install -r requirements.txt
 ```
 
-All dependencies (`gdown`, `timm`, `omegaconf`, `easydict`, `yacs`, `einops`, `huggingface_hub`) are declared in `pyproject.toml` and `requirements.txt`, installed automatically by ComfyUI Manager or pip.
+Dependencies are declared in `pyproject.toml` and `requirements.txt` and are installed automatically by ComfyUI Manager or pip. LDF-VFI requires PyTorch 2.5+ plus a current `diffusers`/`accelerate` stack.
 
-### cupy (required for BIM-VFI, SGM-VFI, GIMM-VFI)
+### Demo workflow
 
-[cupy](https://cupy.dev/) provides GPU-accelerated optical flow warping. **EMA-VFI works without it.**
+Import [`example_workflows/tween_speed_ldf_model_lab.json`](example_workflows/tween_speed_ldf_model_lab.json) for the recommended starter graph. It requires [ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) for video loading and encoding.
+
+- The enabled SPEED branch loads a 25-frame, 24 FPS sample, automatically tunes memory settings, interpolates to 48 FPS, preserves audio, and writes `Tween/demo_speed_24_to_48`.
+- The LDF-VFI branch is visibly grouped and muted by default so the workflow does not unexpectedly download ~6.4 GB or reserve ~20 GB VRAM. Enable its three coral nodes when you want to compare the sequence-native model.
+- Keep the loader's `force_rate`, Tween's `source_fps`/`target_fps`, and Video Combine's `frame_rate` synchronized when changing cadence.
+
+### cupy (accelerates BIM-VFI, SGM-VFI, and GIMM-VFI)
+
+[cupy](https://cupy.dev/) provides GPU-accelerated optical flow warping. **EMA-VFI, SPEED, and LDF-VFI do not use it.**
 
 1. Find your CUDA version:
    ```bash
@@ -55,19 +63,16 @@ All dependencies (`gdown`, `timm`, `omegaconf`, `easydict`, `yacs`, `einops`, `h
 
 ## Which model should I use?
 
-| | BIM-VFI | EMA-VFI | SGM-VFI | GIMM-VFI |
-|---|---------|---------|---------|----------|
-| **Best for** | General-purpose | Fast, low VRAM | Large motion | High multipliers (4x/8x) |
-| **Quality** | Highest | Good | Best on large motion | Good |
-| **Speed** | Moderate | Fastest | Slowest | Fast for 4x/8x |
-| **VRAM** | ~2 GB/pair | ~1.5 GB/pair | ~3 GB/pair | ~2.5 GB/pair |
-| **Params** | ~17 M | ~14–65 M | ~15 M + GMFlow | ~80 M (RAFT) / ~123 M (FlowFormer) |
-| **Arbitrary timestep** | Yes | Yes (`_t` checkpoint) | No (fixed 0.5) | Yes (native) |
-| **4x/8x** | Recursive passes | Recursive passes | Recursive passes | Single forward pass |
-| **Requires cupy** | Yes | No | Yes | Yes |
-| **Paper** | CVPR 2025 | CVPR 2023 | CVPR 2024 | NeurIPS 2024 |
+| Model | Best for | Multiplier path | Typical VRAM | Trade-off |
+|-------|----------|-----------------|--------------|-----------|
+| **BIM-VFI** | Strong general pairwise quality | Recursive 2x/4x/8x | ~2 GB/pair | Research/education license |
+| **EMA-VFI** | Speed and lower VRAM | Recursive 2x/4x/8x | ~1.5 GB/pair | Less robust on extreme motion |
+| **SGM-VFI** | Large motion | Recursive 2x/4x/8x | ~3 GB/pair | Slowest pairwise option |
+| **GIMM-VFI** | Arbitrary timesteps, efficient 4x/8x | Native multi-frame per pair | ~2.5 GB/pair | Still frame-pair-centric |
+| **SPEED** | New high-quality midpoint generation | One diffusion step at 2x; recursive 4x/8x | ~2.3–2.6 GB at benchmark resolutions | Stochastic, ~447 MB checkpoint |
+| **LDF-VFI** | Long-range temporal coherence and 2x–16x | Native sequence diffusion | ~20 GB | ~6.4 GB weights; much slower |
 
-**TL;DR:** Start with **BIM-VFI** for best quality. Use **EMA-VFI** for speed or if you can't install cupy. Use **SGM-VFI** for large camera motion. Use **GIMM-VFI** for 4x/8x without recursive passes.
+**TL;DR:** Try **SPEED** as the modern pairwise default. Use **EMA-VFI** when latency matters, **SGM-VFI** for difficult large motion, **GIMM-VFI** for lightweight arbitrary timesteps, and **LDF-VFI** when sequence consistency matters more than speed or memory.
 
 ## VRAM Guide
 
@@ -78,9 +83,11 @@ All dependencies (`gdown`, `timm`, `omegaconf`, `easydict`, `yacs`, `einops`, `h
 | 48 GB+ | `batch_size=4–16, all_on_gpu=true` |
 | 96 GB+ | `batch_size=8–16, all_on_gpu=true, chunk_size=0` |
 
+SPEED generally fits the 24 GB tier at HD resolutions. LDF-VFI is a separate workload: its official 8x quick start requires about 20 GB, and higher resolutions may require smaller VAE tiles or more VRAM.
+
 ## Nodes
 
-All Interpolate nodes share a common set of controls:
+The pairwise Interpolate nodes (BIM/EMA/SGM/GIMM/SPEED) share these controls:
 
 | Input | Description |
 |-------|-------------|
@@ -93,7 +100,7 @@ All Interpolate nodes share a common set of controls:
 | **all_on_gpu** | Keep all intermediate frames on GPU (fast, needs large VRAM) |
 | **clear_cache_after_n_frames** | Clear CUDA cache every N pairs to prevent VRAM buildup |
 | **source_fps** | Input frame rate. Required when target_fps > 0 |
-| **target_fps** | Target output FPS. When > 0, overrides multiplier — auto-computes the optimal power-of-2 oversample then selects frames at exact target timestamps. 0 = use multiplier |
+| **target_fps** | Target output FPS. When > 0, overrides multiplier — auto-computes a power-of-2 oversample up to 8x, then selects the nearest generated frame for each target timestamp. 0 = use multiplier |
 
 | Output | Description |
 |--------|-------------|
@@ -202,14 +209,65 @@ Same pattern as other Segment nodes.
 
 </details>
 
+<details>
+<summary><strong>SPEED</strong></summary>
+
+#### Load SPEED Model
+
+Downloads the official `speed.pt` checkpoint from [zhZ524/SPEED](https://huggingface.co/zhZ524/SPEED) to `ComfyUI/models/speed-vfi/`. The loader also fetches a checksum-pinned snapshot of the official runtime on first use; Tween does not bundle that source.
+
+| Input | Description |
+|-------|-------------|
+| **model_path** | Checkpoint from `models/speed-vfi/` (official default is ~447 MB) |
+| **precision** | `auto` prefers BF16, then FP16; FP32 is available for comparison |
+
+#### SPEED Interpolate / Segment Interpolate
+
+Uses the same batching, chunking, segment, and exact-target-FPS controls as BIM-VFI, plus a `seed` input for repeatable starting pixel noise. Keeping the seed on the interpolation node lets it change without reloading the model. SPEED is repeatable for the same seed and execution settings; changing batch, chunk, or segment boundaries can change how its stochastic noise is assigned. The released model predicts only the midpoint, so 4x and 8x are recursive passes. Inputs are padded to the model's 64-pixel divisor and cropped back automatically.
+
+</details>
+
+<details>
+<summary><strong>LDF-VFI</strong></summary>
+
+#### Load LDF-VFI Model
+
+Downloads the official transformer and conditional VAE from [onecat-ai/LDF-VFI](https://huggingface.co/onecat-ai/LDF-VFI) to `ComfyUI/models/ldf-vfi/` (~6.4 GB total). A checksum-pinned Apache-2.0 runtime snapshot is fetched on first use. Loading stays on CPU until the interpolation node executes.
+
+| Input | Description |
+|-------|-------------|
+| **tile_size / tile_overlap** | Spatial VAE tiling and seam blending; default 256/64 |
+| **vae_batch_size** | Lower first if VAE encode/decode runs out of VRAM |
+| **attention_type** | Official `slide_chunk_all_block_2x1x1` sparse attention is recommended |
+
+#### LDF-VFI Sequence Interpolate
+
+LDF-VFI is not a pairwise node. It processes the ordered source batch with the paper's skip-concat autoregressive sampler and internally chunks long sequences without breaking temporal context.
+
+| Input | Description |
+|-------|-------------|
+| **temporal_factor** | Any integer from 2x through 16x |
+| **sampling_steps** | Diffusion steps per temporal block; official quick start uses 16 |
+| **t_shift / t_cond** | Official defaults are 8.0 / 0.1 |
+| **seed** | Repeatable VAE and diffusion sampling |
+| **offload_after** | Return transformer and VAE to CPU after generation |
+| **source_fps / target_fps** | Optional exact-FPS selection using the smallest sufficient native factor |
+
+The second output, `generated_sequence`, is the full native-factor sequence before exact-FPS selection. LDF has no Segment node because externally splitting the sequence would discard the long-range context it is designed to preserve.
+
+</details>
+
 ### Tween Concat Videos
 
-Concatenates segment video files into a single video using ffmpeg. Connect from any Segment Interpolate's model output to ensure it runs after all segments are saved. Works with all four models.
+Concatenates segment video files into a single video using ffmpeg. Connect from any pairwise Segment Interpolate's model output to ensure it runs after all segments are saved.
 
 ### Output frame count
 
-- **Multiplier mode:** 2x = 2N-1, 4x = 4N-3, 8x = 8N-7
-- **Target FPS mode:** `floor((N-1) / source_fps * target_fps) + 1` frames. Automatically oversamples to the nearest power-of-2 above the ratio, then selects frames at exact target timestamps. Downsampling (target < source) also works — frames are selected from the input with no model calls.
+- **Pairwise multiplier mode:** 2x = 2N-1, 4x = 4N-3, 8x = 8N-7
+- **LDF-VFI native factor:** factor `F` = `F(N-1)+1`, for any integer `F` from 2 through 16
+- **Target FPS mode:** `floor((N-1) / source_fps * target_fps) + 1` frames. Pairwise nodes oversample to the nearest power-of-2 above the ratio (up to 8x), then select the nearest generated frame for each target timestamp. Downsampling (target < source) also works — frames are selected from the input with no model calls. LDF-VFI supports native factors up to 16x.
+
+In target-FPS Segment mode, a very small `segment_size` can cover less than one output-frame interval while downsampling. Increase `segment_size` if the node reports that the segment contains no target timestamps; returning a placeholder frame would make concatenated timing incorrect.
 
 ## Acknowledgments
 
@@ -219,8 +277,10 @@ Concatenates segment video files into a single video using ffmpeg. Connect from 
 | **EMA-VFI** | Zhang et al. (MCG-NJU) | CVPR 2023 | [Paper](https://arxiv.org/abs/2303.00440) · [Code](https://github.com/MCG-NJU/EMA-VFI) |
 | **SGM-VFI** | Zhang et al. (MCG-NJU) | CVPR 2024 | [Paper](https://arxiv.org/abs/2404.06913) · [Code](https://github.com/MCG-NJU/SGM-VFI) |
 | **GIMM-VFI** | Guo, Li, Loy (S-Lab NTU) | NeurIPS 2024 | [Paper](https://arxiv.org/abs/2407.08680) · [Code](https://github.com/GSeanCDAT/GIMM-VFI) |
+| **SPEED** | Zhang et al. | ACM MM 2026 | [Paper](https://arxiv.org/abs/2607.15585) · [Code](https://github.com/bbldCVer/SPEED) · [Model](https://huggingface.co/zhZ524/SPEED) |
+| **LDF-VFI** | Peng et al. | CVPR 2026 | [Paper](https://arxiv.org/abs/2601.14959) · [Code](https://github.com/xypeng9903/LDF-VFI) · [Model](https://huggingface.co/onecat-ai/LDF-VFI) |
 
-GIMM-VFI adaptation from [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/ComfyUI-GIMM-VFI) with checkpoints from [Kijai/GIMM-VFI_safetensors](https://huggingface.co/Kijai/GIMM-VFI_safetensors). Architecture files in `bim_vfi_arch/`, `ema_vfi_arch/`, `sgm_vfi_arch/`, and `gimm_vfi_arch/` are vendored from their respective repositories with minimal modifications.
+GIMM-VFI adaptation from [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/ComfyUI-GIMM-VFI) with checkpoints from [Kijai/GIMM-VFI_safetensors](https://huggingface.co/Kijai/GIMM-VFI_safetensors). Architecture files in `bim_vfi_arch/`, `ema_vfi_arch/`, `sgm_vfi_arch/`, and `gimm_vfi_arch/` are vendored from their respective repositories with minimal modifications. SPEED and LDF-VFI use checksum-pinned official source snapshots downloaded into their model directories on demand.
 
 <details>
 <summary>BibTeX citations</summary>
@@ -253,6 +313,22 @@ GIMM-VFI adaptation from [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/Comfy
   booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
   year={2024}
 }
+
+@misc{zhang2026speed,
+  title={SPEED: One-Step Pixel Diffusion for High-quality Video Frame Interpolation},
+  author={Zhang, Zihao and Zhao, Haoyu and Yang, Siqian and Wu, Yidi and Jiang, Yudong and Wu, Zuxuan},
+  year={2026},
+  eprint={2607.15585},
+  archivePrefix={arXiv}
+}
+
+@misc{peng2026holistic,
+  title={Towards Holistic Modeling for Video Frame Interpolation with Auto-regressive Diffusion Transformers},
+  author={Peng, Xinyu and Li, Han and Huang, Yuyang and Zheng, Ziyang and Wang, Yaoming and Chen, Xin and Dai, Wenrui and Li, Chenglin and Zou, Junni and Xiong, Hongkai},
+  year={2026},
+  eprint={2601.14959},
+  archivePrefix={arXiv}
+}
 ```
 
 </details>
@@ -261,6 +337,8 @@ GIMM-VFI adaptation from [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/Comfy
 
 **BIM-VFI:** Research and education only. Commercial use requires permission from Prof. Munchurl Kim (mkimee@kaist.ac.kr). See the [original repository](https://github.com/KAIST-VICLab/BiM-VFI).
 
-**EMA-VFI, SGM-VFI, GIMM-VFI:** [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0). GIMM-VFI ComfyUI adaptation based on [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/ComfyUI-GIMM-VFI).
+**EMA-VFI, SGM-VFI, GIMM-VFI, LDF-VFI:** [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0). GIMM-VFI ComfyUI adaptation based on [kijai/ComfyUI-GIMM-VFI](https://github.com/kijai/ComfyUI-GIMM-VFI).
+
+**SPEED:** The official source repository did not include a license file when this integration was pinned. Tween does not redistribute that source; the loader downloads it directly from the official repository. Review the upstream terms before redistribution or commercial use. The checkpoint is likewise downloaded from its official Hugging Face repository.
 
 **This wrapper code:** [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0)

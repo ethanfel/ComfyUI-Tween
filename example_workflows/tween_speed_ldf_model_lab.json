@@ -1,0 +1,757 @@
+{
+  "id": "d1b1b840-08a9-4f93-9a1a-5bb9bdb05c39",
+  "revision": 0,
+  "last_node_id": 13,
+  "last_link_id": 11,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "Note",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        1420,
+        112
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "TWEEN MODEL LAB — SPEED + LDF-VFI\n1) Choose a short input video below.  2) Queue Prompt to run the enabled SPEED path.  3) The LDF-VFI path is muted by default; enable its three coral nodes only when you want the heavier sequence model."
+      ],
+      "color": "#1f3a4d",
+      "bgcolor": "#294d66"
+    },
+    {
+      "id": 2,
+      "type": "VHS_LoadVideoPath",
+      "pos": [
+        20,
+        190
+      ],
+      "size": [
+        300,
+        310
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1,
+            8
+          ]
+        },
+        {
+          "name": "frame_count",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": [
+            7,
+            11
+          ]
+        },
+        {
+          "name": "video_info",
+          "type": "VHS_VIDEOINFO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "Node name for S&R": "VHS_LoadVideoPath"
+      },
+      "widgets_values": {
+        "video": "",
+        "force_rate": 24,
+        "custom_width": 0,
+        "custom_height": 0,
+        "frame_load_cap": 25,
+        "skip_first_frames": 0,
+        "select_every_nth": 1,
+        "format": "AnimateDiff",
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "",
+            "type": "path",
+            "format": "video/",
+            "force_rate": 24,
+            "custom_width": 0,
+            "custom_height": 0,
+            "frame_load_cap": 25,
+            "skip_first_frames": 0,
+            "select_every_nth": 1
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "Note",
+      "pos": [
+        20,
+        520
+      ],
+      "size": [
+        300,
+        166
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "INPUT SAFETY DEFAULTS\n• force_rate = 24 FPS\n• frame_load_cap = 25 (~1 second)\n• dimensions = source size\n\nFor another source rate, change force_rate here and source_fps in the chosen Tween node. The Video Combine frame rate must match target_fps."
+      ],
+      "color": "#3f3520",
+      "bgcolor": "#594b2d"
+    },
+    {
+      "id": 4,
+      "type": "LoadSPEEDVFIModel",
+      "pos": [
+        390,
+        170
+      ],
+      "size": [
+        300,
+        105
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "SPEED_VFI_MODEL",
+          "links": [
+            2,
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ComfyUI-Tween.git",
+        "Node name for S&R": "LoadSPEEDVFIModel"
+      },
+      "widgets_values": [
+        "speed.pt",
+        "auto"
+      ],
+      "color": "#243b32",
+      "bgcolor": "#315244"
+    },
+    {
+      "id": 5,
+      "type": "VFIOptimizer",
+      "pos": [
+        390,
+        330
+      ],
+      "size": [
+        310,
+        150
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 1
+        },
+        {
+          "name": "model",
+          "type": "*",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "settings",
+          "type": "VFI_SETTINGS",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ComfyUI-Tween.git",
+        "Node name for S&R": "VFIOptimizer"
+      },
+      "widgets_values": [
+        2,
+        0
+      ],
+      "color": "#243b32",
+      "bgcolor": "#315244"
+    },
+    {
+      "id": 6,
+      "type": "SPEEDVFIInterpolate",
+      "pos": [
+        760,
+        240
+      ],
+      "size": [
+        355,
+        340
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 3
+        },
+        {
+          "name": "model",
+          "type": "SPEED_VFI_MODEL",
+          "link": 4
+        },
+        {
+          "name": "settings",
+          "shape": 7,
+          "type": "VFI_SETTINGS",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            6
+          ]
+        },
+        {
+          "name": "oversampled",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "ComfyUI-Tween.git",
+        "Node name for S&R": "SPEEDVFIInterpolate"
+      },
+      "widgets_values": [
+        2,
+        10,
+        true,
+        false,
+        1,
+        0,
+        24,
+        48,
+        0
+      ],
+      "color": "#243b32",
+      "bgcolor": "#315244"
+    },
+    {
+      "id": 7,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        1170,
+        240
+      ],
+      "size": [
+        360,
+        340
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 6
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": 7
+        },
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 48,
+        "loop_count": 0,
+        "filename_prefix": "Tween/demo_speed_24_to_48",
+        "format": "video/h264-mp4",
+        "pix_fmt": "yuv420p",
+        "crf": 19,
+        "save_metadata": true,
+        "trim_to_audio": false,
+        "pingpong": false,
+        "save_output": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {}
+        }
+      },
+      "color": "#243b32",
+      "bgcolor": "#315244"
+    },
+    {
+      "id": 8,
+      "type": "Note",
+      "pos": [
+        390,
+        20
+      ],
+      "size": [
+        1140,
+        110
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "SPEED — RECOMMENDED, ENABLED\nOne-step diffusion midpoint interpolation. This branch uses target-FPS mode (24→48), a fixed seed, and VFI Optimizer settings. First use downloads the official ~447 MB checkpoint and checksum-pinned runtime."
+      ],
+      "color": "#234936",
+      "bgcolor": "#2d6046"
+    },
+    {
+      "id": 9,
+      "type": "Note",
+      "pos": [
+        390,
+        760
+      ],
+      "size": [
+        1140,
+        125
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "LDF-VFI — ADVANCED, MUTED BY DEFAULT\nRequires an NVIDIA BF16 GPU and roughly 20 GB VRAM; first use downloads ~6.4 GB. To run it, select the three coral nodes below and set Mode → Always. Disable/mute the SPEED output node if you only want LDF. Use 16 sampling steps for the official quality-oriented quick-start setting."
+      ],
+      "color": "#5a2d2d",
+      "bgcolor": "#743b3b"
+    },
+    {
+      "id": 10,
+      "type": "LoadLDFVFIModel",
+      "pos": [
+        390,
+        930
+      ],
+      "size": [
+        340,
+        190
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "LDF_VFI_MODEL",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ComfyUI-Tween.git",
+        "Node name for S&R": "LoadLDFVFIModel"
+      },
+      "widgets_values": [
+        "onecat-ai/LDF-VFI",
+        256,
+        64,
+        4,
+        "slide_chunk_all_block_2x1x1"
+      ],
+      "color": "#5a2d2d",
+      "bgcolor": "#743b3b"
+    },
+    {
+      "id": 11,
+      "type": "LDFVFIInterpolate",
+      "pos": [
+        790,
+        930
+      ],
+      "size": [
+        370,
+        320
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 8
+        },
+        {
+          "name": "model",
+          "type": "LDF_VFI_MODEL",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            10
+          ]
+        },
+        {
+          "name": "generated_sequence",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "ComfyUI-Tween.git",
+        "Node name for S&R": "LDFVFIInterpolate"
+      },
+      "widgets_values": [
+        2,
+        8,
+        8,
+        0.1,
+        42,
+        true,
+        24,
+        48
+      ],
+      "color": "#5a2d2d",
+      "bgcolor": "#743b3b"
+    },
+    {
+      "id": 12,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        1210,
+        930
+      ],
+      "size": [
+        360,
+        340
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 10
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": 11
+        },
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 48,
+        "loop_count": 0,
+        "filename_prefix": "Tween/demo_ldf_24_to_48",
+        "format": "video/h264-mp4",
+        "pix_fmt": "yuv420p",
+        "crf": 19,
+        "save_metadata": true,
+        "trim_to_audio": false,
+        "pingpong": false,
+        "save_output": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {}
+        }
+      },
+      "color": "#5a2d2d",
+      "bgcolor": "#743b3b"
+    },
+    {
+      "id": 13,
+      "type": "Note",
+      "pos": [
+        20,
+        930
+      ],
+      "size": [
+        300,
+        236
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "WHY TWO PATHS?\n\nSPEED\n• Best default for normal pairwise VFI\n• Much smaller and faster\n• 2x midpoint; 4x/8x recursive\n\nLDF-VFI\n• Sequence-native temporal modeling\n• Better suited to long-range coherence\n• 2x–16x, but far heavier\n\nThe LDF demo uses 8 steps for a quicker test. Raise to 16 after the graph is working."
+      ],
+      "color": "#40303b",
+      "bgcolor": "#594353"
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ],
+    [
+      2,
+      4,
+      0,
+      5,
+      1,
+      "*"
+    ],
+    [
+      3,
+      5,
+      0,
+      6,
+      0,
+      "IMAGE"
+    ],
+    [
+      4,
+      4,
+      0,
+      6,
+      1,
+      "SPEED_VFI_MODEL"
+    ],
+    [
+      5,
+      5,
+      1,
+      6,
+      2,
+      "VFI_SETTINGS"
+    ],
+    [
+      6,
+      6,
+      0,
+      7,
+      0,
+      "IMAGE"
+    ],
+    [
+      7,
+      2,
+      2,
+      7,
+      1,
+      "AUDIO"
+    ],
+    [
+      8,
+      2,
+      0,
+      11,
+      0,
+      "IMAGE"
+    ],
+    [
+      9,
+      10,
+      0,
+      11,
+      1,
+      "LDF_VFI_MODEL"
+    ],
+    [
+      10,
+      11,
+      0,
+      12,
+      0,
+      "IMAGE"
+    ],
+    [
+      11,
+      2,
+      2,
+      12,
+      1,
+      "AUDIO"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "1 · INPUT CLIP",
+      "bounding": [
+        -20,
+        135,
+        360,
+        575
+      ],
+      "color": "#8a6d2f",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "2 · SPEED — RECOMMENDED / ENABLED",
+      "bounding": [
+        350,
+        -20,
+        1240,
+        650
+      ],
+      "color": "#347a56",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "3 · LDF-VFI — ADVANCED / MUTED",
+      "bounding": [
+        350,
+        730,
+        1240,
+        590
+      ],
+      "color": "#8a4646",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "workflowRendererVersion": "LG",
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "ds": {
+      "scale": 0.76,
+      "offset": [
+        80,
+        80
+      ]
+    },
+    "frontendVersion": "1.45.19",
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

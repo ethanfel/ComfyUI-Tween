@@ -3,6 +3,8 @@ from .nodes import (
     LoadEMAVFIModel, EMAVFIInterpolate, EMAVFISegmentInterpolate,
     LoadSGMVFIModel, SGMVFIInterpolate, SGMVFISegmentInterpolate,
     LoadGIMMVFIModel, GIMMVFIInterpolate, GIMMVFISegmentInterpolate,
+    LoadSPEEDVFIModel, SPEEDVFIInterpolate, SPEEDVFISegmentInterpolate,
+    LoadLDFVFIModel, LDFVFIInterpolate,
     VFIOptimizer,
 )
 
@@ -20,6 +22,11 @@ NODE_CLASS_MAPPINGS = {
     "LoadGIMMVFIModel": LoadGIMMVFIModel,
     "GIMMVFIInterpolate": GIMMVFIInterpolate,
     "GIMMVFISegmentInterpolate": GIMMVFISegmentInterpolate,
+    "LoadSPEEDVFIModel": LoadSPEEDVFIModel,
+    "SPEEDVFIInterpolate": SPEEDVFIInterpolate,
+    "SPEEDVFISegmentInterpolate": SPEEDVFISegmentInterpolate,
+    "LoadLDFVFIModel": LoadLDFVFIModel,
+    "LDFVFIInterpolate": LDFVFIInterpolate,
     "VFIOptimizer": VFIOptimizer,
 }
 
@@ -37,5 +44,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadGIMMVFIModel": "Load GIMM-VFI Model",
     "GIMMVFIInterpolate": "GIMM-VFI Interpolate",
     "GIMMVFISegmentInterpolate": "GIMM-VFI Segment Interpolate",
+    "LoadSPEEDVFIModel": "Load SPEED Model",
+    "SPEEDVFIInterpolate": "SPEED Interpolate",
+    "SPEEDVFISegmentInterpolate": "SPEED Segment Interpolate",
+    "LoadLDFVFIModel": "Load LDF-VFI Model",
+    "LDFVFIInterpolate": "LDF-VFI Sequence Interpolate",
     "VFIOptimizer": "VFI Optimizer",
 }
