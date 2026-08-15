@@ -187,11 +187,12 @@ class LDFVFIModel:
         target = torch.device(device)
         if target.type == "cuda" and not _cuda_bf16_supported(target):
             raise RuntimeError("LDF-VFI requires a CUDA GPU with BF16 support (Ampere or newer)")
-        # from_pretrained(torch_dtype=...) keeps numerically sensitive modules
-        # (time embedding, norms, scale/shift) in FP32. Passing dtype here would
-        # flatten that mixed-precision policy and diffusers warns that results
-        # can become inconsistent.
-        self.transformer.to(device=target)
+        # LDF's custom Wan fork expects its complete condition embedder to use
+        # one dtype: time_embedder feeds time_proj directly without an explicit
+        # cast. Match the official generator's model.to(..., dtype=BF16) call;
+        # preserving diffusers' generic FP32-module policy leaves that pair as
+        # Float/BFloat16 and fails in the first sampling step.
+        self.transformer.to(device=target, dtype=self.dtype)
         self._move_auxiliary_models(target)
         self.device = str(target)
         return self

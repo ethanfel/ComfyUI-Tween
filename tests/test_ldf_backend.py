@@ -1,5 +1,6 @@
 import torch
 import pytest
+from types import SimpleNamespace
 
 from ldf_backend import LDFVFIModel
 
@@ -19,6 +20,15 @@ class _RecordingConditionalVAE:
         # A small real result lets _decode finish without materializing the
         # full 720p tensors used for the shape-only inputs above.
         return torch.zeros(1, 3, 40, 1, 1)
+
+
+class _RecordingTransformer:
+    def __init__(self):
+        self.to_kwargs = None
+
+    def to(self, **kwargs):
+        self.to_kwargs = kwargs
+        return self
 
 
 class _ShapeOnlyLDF(LDFVFIModel):
@@ -78,6 +88,21 @@ def test_decode_tiles_40_frame_720p_condition_for_conditional_vae():
         (1, 2, 1, 20, 768, 1344),
     )
     assert result.shape == (40, 3, 1, 1)
+
+
+def test_device_move_casts_complete_ldf_transformer_to_bfloat16():
+    model = LDFVFIModel.__new__(LDFVFIModel)
+    transformer = _RecordingTransformer()
+    model.model = SimpleNamespace(transformer=transformer)
+    model.dtype = torch.bfloat16
+    model._move_auxiliary_models = lambda device: None
+
+    model.to("cpu")
+
+    assert transformer.to_kwargs == {
+        "device": torch.device("cpu"),
+        "dtype": torch.bfloat16,
+    }
 
 
 def test_decode_rejects_condition_length_that_cannot_tile():
