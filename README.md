@@ -25,10 +25,9 @@ Dependencies are declared in `pyproject.toml` and `requirements.txt` and are ins
 
 ### Demo workflow
 
-Import [`example_workflows/tween_speed_ldf_model_lab.json`](example_workflows/tween_speed_ldf_model_lab.json) for the recommended starter graph. It requires [ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) for video loading and encoding.
+Import [`example_workflows/tween_speed_bim_model_lab.json`](example_workflows/tween_speed_bim_model_lab.json) for the recommended starter graph. It requires [ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) for video loading and encoding.
 
-- The enabled SPEED branch loads a 25-frame, 24 FPS sample, automatically tunes memory settings, interpolates to 48 FPS, preserves audio, and writes `Tween/demo_speed_24_to_48`.
-- The LDF-VFI branch is visibly grouped and muted by default so the workflow does not unexpectedly download ~6.4 GB or reserve ~20 GB VRAM. Enable its three coral nodes when you want to compare the sequence-native model.
+- The SPEED and BIM-VFI branches load the same 25-frame, 24 FPS sample, tune memory settings independently, interpolate to 48 FPS, preserve audio, and save separate comparison videos.
 - Keep the loader's `force_rate`, Tween's `source_fps`/`target_fps`, and Video Combine's `frame_rate` synchronized when changing cadence.
 
 ### cupy (accelerates BIM-VFI, SGM-VFI, and GIMM-VFI)
