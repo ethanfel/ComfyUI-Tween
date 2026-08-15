@@ -23,3 +23,7 @@ Repository = "https://github.com/Ethanfel/ComfyUI-Tween"
 [tool.comfy]
 PublisherId = "ethanfel"
 DisplayName = "Tween - Video Frame Interpolation"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--confcutdir=tests"

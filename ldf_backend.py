@@ -187,7 +187,11 @@ class LDFVFIModel:
         target = torch.device(device)
         if target.type == "cuda" and not _cuda_bf16_supported(target):
             raise RuntimeError("LDF-VFI requires a CUDA GPU with BF16 support (Ampere or newer)")
-        self.transformer.to(device=target, dtype=self.dtype)
+        # from_pretrained(torch_dtype=...) keeps numerically sensitive modules
+        # (time embedding, norms, scale/shift) in FP32. Passing dtype here would
+        # flatten that mixed-precision policy and diffusers warns that results
+        # can become inconsistent.
+        self.transformer.to(device=target)
         self._move_auxiliary_models(target)
         self.device = str(target)
         return self
@@ -287,7 +291,46 @@ class LDFVFIModel:
         latent = rearrange(
             latent, "1 nt nh nw c t h w -> 1 nt c t (nh h) (nw w)"
         )
-        prediction = self.vae.decode(latent, dense, dense_mask)[..., :height, :width]
+        if dense.ndim != 5 or dense_mask.ndim != 5:
+            raise RuntimeError(
+                "LDF-VFI decode conditions must use [batch, channels, time, height, width]"
+            )
+
+        temporal_tiles = latent.shape[1]
+        if dense.shape[2] % temporal_tiles:
+            raise RuntimeError(
+                f"LDF-VFI condition length {dense.shape[2]} is not divisible by "
+                f"the {temporal_tiles} decode tiles"
+            )
+
+        # Mirror the official generate.vae_decode adapter. The conditional VAE
+        # consumes one condition and mask tile per latent temporal tile, not a
+        # single continuous 5-D condition tensor.
+        decode_height = latent.shape[-2] * self.vae.spatial_compression_ratio
+        decode_width = latent.shape[-1] * self.vae.spatial_compression_ratio
+        pad_height = decode_height - dense.shape[-2]
+        pad_width = decode_width - dense.shape[-1]
+        if pad_height < 0 or pad_width < 0:
+            raise RuntimeError(
+                "LDF-VFI decoded latent is smaller than its conditioning frames; "
+                "check the VAE tile and overlap settings"
+            )
+        dense = F.pad(dense, (0, pad_width, 0, pad_height))
+        dense = rearrange(
+            dense, "b c (nt t) h w -> b nt c t h w", nt=temporal_tiles
+        )
+
+        dense_mask = dense_mask[..., 0, 0]
+        dense_mask = repeat(
+            dense_mask, "b c t -> b c t h w", h=decode_height, w=decode_width
+        )
+        dense_mask = rearrange(
+            dense_mask, "b c (nt t) h w -> b nt c t h w", nt=temporal_tiles
+        )
+
+        prediction = self.vae.decode(
+            latent, dense, dense_mask
+        )[..., :height, :width]
         return rearrange(prediction, "1 c t h w -> t c h w").add(1).mul(0.5).clamp_(0, 1).float().cpu()
 
     @staticmethod
