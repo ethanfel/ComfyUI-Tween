@@ -1979,8 +1979,8 @@ class LDFVFIInterpolate:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "IMAGE")
-    RETURN_NAMES = ("images", "generated_sequence")
+    RETURN_TYPES = ("IMAGE", "IMAGE", "FLOAT")
+    RETURN_NAMES = ("images", "generated_sequence", "elapsed_seconds")
     FUNCTION = "interpolate"
     CATEGORY = "video/LDF-VFI"
 
@@ -1988,7 +1988,7 @@ class LDFVFIInterpolate:
                     t_shift, t_cond, seed, offload_after,
                     source_fps=0.0, target_fps=0.0):
         if images.shape[0] < 2:
-            return (images, images)
+            return (images, images, 0.0)
         device = _get_torch_device()
         if device.type != "cuda":
             raise RuntimeError(
@@ -2004,7 +2004,7 @@ class LDFVFIInterpolate:
                 selected = _select_target_fps_frames(
                     source, source_fps, target_fps, 1, source.shape[0]
                 ).permute(0, 2, 3, 1).cpu()
-                return (selected, images)
+                return (selected, images, 0.0)
             temporal_factor = math.ceil(ratio)
             if temporal_factor > 16:
                 raise ValueError(
@@ -2027,6 +2027,7 @@ class LDFVFIInterpolate:
         )
         try:
             model.to(device)
+            interpolation_started = time.perf_counter()
             generated = model.interpolate_sequence(
                 source,
                 temporal_factor=temporal_factor,
@@ -2036,6 +2037,7 @@ class LDFVFIInterpolate:
                 seed=seed,
                 progress_callback=update_progress,
             )
+            elapsed_seconds = time.perf_counter() - interpolation_started
         finally:
             generation_failed = sys.exc_info()[0] is not None
             cleanup_error = None
@@ -2061,8 +2063,11 @@ class LDFVFIInterpolate:
                 temporal_factor, source.shape[0],
             )
         result = generated.permute(0, 2, 3, 1).cpu()
-        logger.info("LDF-VFI: done, %s output frames", result.shape[0])
-        return (result, generated_sequence)
+        logger.info(
+            "LDF-VFI: done, %s output frames in %.2f seconds",
+            result.shape[0], elapsed_seconds,
+        )
+        return (result, generated_sequence, round(elapsed_seconds, 3))
 
 
 # ---------------------------------------------------------------------------
