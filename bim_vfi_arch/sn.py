@@ -5,8 +5,9 @@ from .backwarp import backwarp
 
 
 class SynthesisNetwork(nn.Module):
-    def __init__(self, feat_channels):
+    def __init__(self, feat_channels, use_rgb_refine_residual=True):
         super(SynthesisNetwork, self).__init__()
+        self.use_rgb_refine_residual = use_rgb_refine_residual
         input_channels = 6 + 1
         self.conv_down1 = nn.Sequential(
             nn.Conv2d(input_channels, feat_channels, 7, padding=3),
@@ -59,6 +60,13 @@ class SynthesisNetwork(nn.Module):
             warped_img1 = backwarp(i1, flow_t1)
             return warped_img0, warped_img1, warped_c0, warped_c1
 
+    def merge_warped_images(self, warped_img0, warped_img1,
+                            blending_mask, refine_res):
+        merged_img = warped_img0 * blending_mask + warped_img1 * (1 - blending_mask)
+        if self.use_rgb_refine_residual:
+            merged_img = merged_img + refine_res
+        return merged_img
+
     def forward(self, i0, i1, c0_pyr, c1_pyr, bi_flow_pyr, occ):
         warped_img0, warped_img1, warped_c0, warped_c1 = \
             self.get_warped_representations(
@@ -82,7 +90,9 @@ class SynthesisNetwork(nn.Module):
         occ_res = refine[:, 3:]
         occ_out = occ + occ_res
         blending_mask = torch.sigmoid(occ_out)
-        merged_img = (warped_img0 * blending_mask + warped_img1 * (1 - blending_mask)) + refine_res
+        merged_img = self.merge_warped_images(
+            warped_img0, warped_img1, blending_mask, refine_res
+        )
         interp_img = merged_img
 
         extra_dict = {}

@@ -161,7 +161,7 @@
       "id": 6,
       "type": "LoadBIMVFIModel",
       "pos": [390, 790],
-      "size": [300, 125],
+      "size": [300, 150],
       "flags": {},
       "order": 5,
       "mode": 0,
@@ -173,7 +173,7 @@
         "aux_id": "ComfyUI-Tween.git",
         "Node name for S&R": "LoadBIMVFIModel"
       },
-      "widgets_values": ["bim_vfi.pth", true, 3],
+      "widgets_values": ["bim_vfi.pth", true, 3, false],
       "color": "#28384a",
       "bgcolor": "#36506b"
     },

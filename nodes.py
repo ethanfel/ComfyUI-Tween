@@ -289,13 +289,19 @@ class LoadBIMVFIModel:
                 }),
                 "auto_pyr_level": ("BOOLEAN", {
                     "default": True,
-                    "tooltip": "Automatically select pyramid level based on input resolution: <540p=3, 540p=5, 1080p=6, 4K=7. Disable to use manual pyr_level.",
+                    "tooltip": "Use the official pyramid policy: below 1080p=5, 1080p=6, 4K=7. Disable to use manual pyr_level.",
                 }),
                 "pyr_level": ("INT", {
                     "default": 3, "min": 3, "max": 7, "step": 1,
                     "tooltip": "Manual pyramid levels for coarse-to-fine processing. Only used when auto_pyr_level is disabled. More levels = captures larger motion but slower.",
                 }),
-            }
+            },
+            "optional": {
+                "artifact_safe_mode": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Disable BIM-VFI's RGB refinement residual. This can remove wrong-edge/halo artifacts when optical flow is misaligned by blur or large motion, but may reduce detail on easy shots.",
+                }),
+            },
         }
 
     RETURN_TYPES = ("BIM_VFI_MODEL",)
@@ -303,7 +309,8 @@ class LoadBIMVFIModel:
     FUNCTION = "load_model"
     CATEGORY = "video/BIM-VFI"
 
-    def load_model(self, model_path, auto_pyr_level, pyr_level):
+    def load_model(self, model_path, auto_pyr_level, pyr_level,
+                   artifact_safe_mode=False):
         full_path = os.path.join(MODEL_DIR, model_path)
 
         if not os.path.exists(full_path):
@@ -314,11 +321,15 @@ class LoadBIMVFIModel:
             checkpoint_path=full_path,
             pyr_level=pyr_level,
             auto_pyr_level=auto_pyr_level,
+            artifact_safe_mode=artifact_safe_mode,
             device="cpu",
         )
 
         mode = "auto" if auto_pyr_level else f"manual ({pyr_level})"
-        logger.info(f"BIM-VFI model loaded (pyr_level={mode})")
+        synthesis = "artifact-safe" if artifact_safe_mode else "official"
+        logger.info(
+            f"BIM-VFI model loaded (pyr_level={mode}, synthesis={synthesis})"
+        )
         return (wrapper,)
 
 

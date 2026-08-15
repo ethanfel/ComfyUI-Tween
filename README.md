@@ -117,8 +117,11 @@ Loads the BiM-VFI checkpoint. Auto-downloads from Google Drive on first use to `
 | Input | Description |
 |-------|-------------|
 | **model_path** | Checkpoint from `models/bim-vfi/` |
-| **auto_pyr_level** | Auto pyramid level by resolution (&lt;540p=3, 540p=5, 1080p=6, 4K=7) |
+| **auto_pyr_level** | Official automatic pyramid policy (below 1080p=5, 1080p=6, 4K=7) |
 | **pyr_level** | Manual pyramid level (3–7), used when auto is off |
+| **artifact_safe_mode** | Disables the RGB refinement residual to suppress wrong-edge/halo artifacts caused by flow misalignment in blurry or large-motion shots. Off preserves official behavior and can retain more detail on easy shots |
+
+`artifact_safe_mode` implements the workaround recommended by the official BIM-VFI maintainer for [wrong-edge artifacts caused by severely misaligned warped inputs](https://github.com/KAIST-VICLab/BiM-VFI/issues/1). Enable it selectively for affected footage.
 
 #### BIM-VFI Interpolate
 

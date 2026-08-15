@@ -17,12 +17,18 @@ logger = logging.getLogger("Tween")
 class BiMVFIModel:
     """Clean inference wrapper around BiMVFI for ComfyUI integration."""
 
-    def __init__(self, checkpoint_path, pyr_level=3, auto_pyr_level=True, device="cpu"):
+    def __init__(self, checkpoint_path, pyr_level=3, auto_pyr_level=True,
+                 artifact_safe_mode=False, device="cpu"):
         self.pyr_level = pyr_level
         self.auto_pyr_level = auto_pyr_level
+        self.artifact_safe_mode = artifact_safe_mode
         self.device = device
 
-        self.model = BiMVFI(pyr_level=pyr_level, feat_channels=32)
+        self.model = BiMVFI(
+            pyr_level=pyr_level,
+            feat_channels=32,
+            artifact_safe_mode=artifact_safe_mode,
+        )
         self._load_checkpoint(checkpoint_path)
         self.model.eval()
         self.model.to(device)
@@ -61,10 +67,11 @@ class BiMVFIModel:
                 return 7
             elif h >= 1080:
                 return 6
-            elif h >= 540:
-                return 5
             else:
-                return 3
+                # Match the official video inference path. Level 3 can miss
+                # large motion even at low resolutions; it remains available
+                # as a manual speed/quality tradeoff.
+                return 5
         return self.pyr_level
 
     @torch.no_grad()

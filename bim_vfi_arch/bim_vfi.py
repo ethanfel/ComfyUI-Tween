@@ -12,13 +12,17 @@ from ..utils.padder import InputPadder
 
 
 class BiMVFI(nn.Module):
-    def __init__(self, pyr_level=3, feat_channels=32, **kwargs):
+    def __init__(self, pyr_level=3, feat_channels=32,
+                 artifact_safe_mode=False, **kwargs):
         super(BiMVFI, self).__init__()
         self.pyr_level = pyr_level
         self.mfe = ResNetPyramid(feat_channels)
         self.cfe = ResNetPyramid(feat_channels)
         self.bimfn = BiMFN(feat_channels)
-        self.sn = SynthesisNetwork(feat_channels)
+        self.sn = SynthesisNetwork(
+            feat_channels,
+            use_rgb_refine_residual=not artifact_safe_mode,
+        )
         self.feat_channels = feat_channels
         self.caun = CAUN(feat_channels)
 
